@@ -506,6 +506,73 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                           </p>
                         </div>
                       </div>
+
+                      {/* 方案 B：主要心儀女孩方位導航徽章（緊湊型雷達膠囊） */}
+                      {step.targetGirlRadar && (
+                        <div className="mt-3.5 rounded-xl border border-[#5ECBC0]/30 bg-[#F4FAF8] p-2.5 sm:p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-[#212047]/5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#212047] text-[10px] font-black text-[#5ECBC0]">
+                                ★
+                              </span>
+                              <span className="text-xs font-black text-[#212047]">
+                                目標【{step.targetGirlRadar.targetGirlName}】座位視角雷達
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-bold text-[#212047]/60">
+                              以面向球場為基準（左側 C 區 ◀ · 右側 A 區 ▶）
+                            </span>
+                          </div>
+
+                          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {/* 開局 0-10 分時段 */}
+                            <div className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 shadow-2xs ring-1 ring-[#212047]/5">
+                              <span className="text-[11px] font-bold text-[#212047]/70">
+                                開局（0–10 分）：
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="rounded bg-[#212047]/5 px-1.5 py-0.5 text-[10px] font-bold text-[#212047]/80">
+                                  {step.targetGirlRadar.initial.zone} 區 {step.targetGirlRadar.initial.slotName}
+                                </span>
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-xs font-black ${
+                                    step.targetGirlRadar.initial.isDirectFront
+                                      ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-400'
+                                      : step.targetGirlRadar.initial.isSameZone
+                                        ? 'bg-[#5ECBC0]/20 text-[#212047] ring-1 ring-[#5ECBC0]'
+                                        : 'bg-amber-50 text-amber-900 ring-1 ring-amber-300'
+                                  }`}
+                                >
+                                  {step.targetGirlRadar.initial.offsetText}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* 破 10 分決勝時段 */}
+                            <div className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 shadow-2xs ring-1 ring-[#212047]/5">
+                              <span className="text-[11px] font-bold text-[#212047]/70">
+                                破 10 分換位後：
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="rounded bg-[#212047]/5 px-1.5 py-0.5 text-[10px] font-bold text-[#212047]/80">
+                                  {step.targetGirlRadar.after10.zone} 區 {step.targetGirlRadar.after10.slotName}
+                                </span>
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-xs font-black ${
+                                    step.targetGirlRadar.after10.isDirectFront
+                                      ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-400'
+                                      : step.targetGirlRadar.after10.isSameZone
+                                        ? 'bg-[#5ECBC0]/20 text-[#212047] ring-1 ring-[#5ECBC0]'
+                                        : 'bg-amber-50 text-amber-900 ring-1 ring-amber-300'
+                                  }`}
+                                >
+                                  {step.targetGirlRadar.after10.offsetText}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

@@ -114,6 +114,24 @@ export interface FullMatchPlanResult {
   heldSeats: HeldSeat[];
 }
 
+export interface PhaseRadarDetail {
+  zone: AceZoneId;
+  slotIndex: 0 | 1 | 2;
+  slotName: string;
+  isDirectFront: boolean;
+  isSameZone: boolean;
+  offsetSeats: number;
+  offsetText: string;
+}
+
+export interface TargetGirlRadarPill {
+  targetGirlId: string;
+  targetGirlName: string;
+  targetGirlNumber: string;
+  initial: PhaseRadarDetail;
+  after10: PhaseRadarDetail;
+}
+
 export interface IndividualItineraryStep {
   setKey: 'set1_4' | 'set2_5' | 'set3';
   setLabel: string;
@@ -132,6 +150,7 @@ export interface IndividualItineraryStep {
   needsMoveFromPrevSet: boolean;
   prevSeatLabel?: string;
   matchedExceptionNote?: string;
+  targetGirlRadar?: TargetGirlRadarPill;
 }
 
 export interface IndividualPlanItinerary {
@@ -149,6 +168,88 @@ const SLOT_CORE_CENTERS: Record<0 | 1 | 2, number> = {
   1: 12,
   2: 19.5,
 };
+
+const SLOT_NAMES: Record<0 | 1 | 2, string> = {
+  0: '1–8 號',
+  1: '9–15 號',
+  2: '16–23 號',
+};
+
+/**
+ * 計算單一座位相對於主要心儀女孩的雷達方位膠囊（方案 B）
+ */
+export function computeTargetGirlRadar(
+  assignedSeat: HeldSeat | null,
+  targetGirlId: string,
+  setStation: {
+    initial: Record<AceZoneId, [string, string, string]>;
+    after10Points: Record<AceZoneId, [string, string, string]>;
+  }
+): TargetGirlRadarPill | undefined {
+  const member = MEMBERS.find((m) => m.id === targetGirlId);
+  if (!member || !assignedSeat) return undefined;
+
+  const zones: AceZoneId[] = ['A', 'B', 'C'];
+  let initZone: AceZoneId = 'B';
+  let initSlot: 0 | 1 | 2 = 1;
+  let afterZone: AceZoneId = 'B';
+  let afterSlot: 0 | 1 | 2 = 1;
+
+  for (const z of zones) {
+    const iIdx = setStation.initial[z].indexOf(targetGirlId);
+    if (iIdx !== -1) {
+      initZone = z;
+      initSlot = iIdx as 0 | 1 | 2;
+    }
+    const aIdx = setStation.after10Points[z].indexOf(targetGirlId);
+    if (aIdx !== -1) {
+      afterZone = z;
+      afterSlot = aIdx as 0 | 1 | 2;
+    }
+  }
+
+  const sGlobal = ZONE_INDEX[assignedSeat.zone] * 23 + assignedSeat.seat;
+
+  const buildPhaseDetail = (zone: AceZoneId, slot: 0 | 1 | 2): PhaseRadarDetail => {
+    const gGlobal = ZONE_INDEX[zone] * 23 + SLOT_CORE_CENTERS[slot];
+    const isSameZone = assignedSeat.zone === zone;
+    let isDirectFront = false;
+    if (isSameZone) {
+      if (slot === 0 && assignedSeat.seat >= 1 && assignedSeat.seat <= 8) isDirectFront = true;
+      if (slot === 1 && assignedSeat.seat >= 9 && assignedSeat.seat <= 15) isDirectFront = true;
+      if (slot === 2 && assignedSeat.seat >= 16 && assignedSeat.seat <= 23) isDirectFront = true;
+    }
+
+    const delta = gGlobal - sGlobal;
+    const offsetSeats = Math.round(Math.abs(delta));
+    let offsetText = '▲ 正前方直視';
+    if (!isDirectFront) {
+      if (delta > 0) {
+        offsetText = isSameZone ? `◀ 左前 ${offsetSeats} 席` : `◀ 左前 ${offsetSeats} 席 (${zone}區)`;
+      } else {
+        offsetText = isSameZone ? `右前 ${offsetSeats} 席 ▶` : `右前 ${offsetSeats} 席 ▶ (${zone}區)`;
+      }
+    }
+
+    return {
+      zone,
+      slotIndex: slot,
+      slotName: SLOT_NAMES[slot],
+      isDirectFront,
+      isSameZone,
+      offsetSeats,
+      offsetText,
+    };
+  };
+
+  return {
+    targetGirlId: member.id,
+    targetGirlName: member.name,
+    targetGirlNumber: member.number,
+    initial: buildPhaseDetail(initZone, initSlot),
+    after10: buildPhaseDetail(afterZone, afterSlot),
+  };
+}
 
 /**
  * 計算觀眾席座位全域座標到特定站位女孩的距離與方向
@@ -668,6 +769,12 @@ export function getIndividualPlanItinerary(
       if (assignment.needsMoveFromPrevSet) hasAnyMove = true;
       scoreSum += assignment.score;
       targetGirl = assignment.targetGirl;
+
+      const setStation = planResult.match.sets.find((s) => s.setKey === setRes.setKey);
+      const targetGirlRadar = setStation && assignment.assignedSeat
+        ? computeTargetGirlRadar(assignment.assignedSeat, assignment.targetGirlId, setStation)
+        : undefined;
+
       steps.push({
         setKey: setRes.setKey,
         setLabel: setRes.setLabel,
@@ -686,6 +793,7 @@ export function getIndividualPlanItinerary(
         needsMoveFromPrevSet: assignment.needsMoveFromPrevSet,
         prevSeatLabel: assignment.prevSeatLabel,
         matchedExceptionNote: assignment.matchedExceptionNote,
+        targetGirlRadar,
       });
     }
   }
@@ -792,6 +900,11 @@ export function formatIndividualPlanText(
 
     lines.push(`局數 ${idx + 1} · ${step.setLabel}：`);
     lines.push(`  → 請就座：${seatText} [${step.rankBadge}]${frontText}${expNote}`);
+    if (step.targetGirlRadar) {
+      lines.push(
+        `  → ★ ${step.targetGirlRadar.targetGirlName}方位雷達：開局【${step.targetGirlRadar.initial.offsetText}】· 破10分【${step.targetGirlRadar.after10.offsetText}】`
+      );
+    }
     lines.push(`  → 視角分析：${step.viewNote}`);
     if (moveAlert) {
       lines.push(`  ${moveAlert}`);
