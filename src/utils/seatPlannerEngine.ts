@@ -55,6 +55,122 @@ export interface FullMatchPlanResult {
   heldSeats: HeldSeat[];
 }
 
+export interface IndividualItineraryStep {
+  setKey: 'set1_4' | 'set2_5' | 'set3';
+  setLabel: string;
+  setShortLabel: string;
+  assignedSeat: HeldSeat | null;
+  score: number;
+  rankLevel: 'perfect' | 'great' | 'good' | 'fair' | 'poor' | 'unassigned';
+  rankBadge: string;
+  distanceInit: number;
+  distanceAfter10: number;
+  directionInitText: string;
+  directionAfter10Text: string;
+  frontGirlInit: AceVivaMember | null;
+  frontGirlAfter10: AceVivaMember | null;
+  viewNote: string;
+  needsMoveFromPrevSet: boolean;
+  prevSeatLabel?: string;
+}
+
+export interface IndividualPlanItinerary {
+  participant: Participant;
+  targetGirl: AceVivaMember;
+  steps: IndividualItineraryStep[];
+  hasAnyMove: boolean;
+  totalScoreAvg: number;
+}
+
+/**
+ * 提取單一參與者在整場比賽各局的換位攻略行程
+ */
+export function getIndividualPlanItinerary(
+  planResult: FullMatchPlanResult,
+  participantId: string
+): IndividualPlanItinerary | null {
+  const participant = planResult.participants.find((p) => p.id === participantId);
+  if (!participant) return null;
+
+  const memberMap = new Map(MEMBERS.map((m) => [m.id, m]));
+  const targetGirl = memberMap.get(participant.targetGirlId) || MEMBERS[0];
+
+  const steps: IndividualItineraryStep[] = [];
+  let scoreSum = 0;
+  let hasAnyMove = false;
+
+  for (const setRes of planResult.sets) {
+    const assignment = setRes.assignments.find((a) => a.participantId === participantId);
+    if (assignment) {
+      if (assignment.needsMoveFromPrevSet) hasAnyMove = true;
+      scoreSum += assignment.score;
+      steps.push({
+        setKey: setRes.setKey,
+        setLabel: setRes.setLabel,
+        setShortLabel: setRes.setShortLabel,
+        assignedSeat: assignment.assignedSeat,
+        score: assignment.score,
+        rankLevel: assignment.rankLevel,
+        rankBadge: assignment.rankBadge,
+        distanceInit: assignment.distanceInit,
+        distanceAfter10: assignment.distanceAfter10,
+        directionInitText: assignment.directionInitText,
+        directionAfter10Text: assignment.directionAfter10Text,
+        frontGirlInit: assignment.frontGirlInit,
+        frontGirlAfter10: assignment.frontGirlAfter10,
+        viewNote: assignment.viewNote,
+        needsMoveFromPrevSet: assignment.needsMoveFromPrevSet,
+        prevSeatLabel: assignment.prevSeatLabel,
+      });
+    }
+  }
+
+  return {
+    participant,
+    targetGirl,
+    steps,
+    hasAnyMove,
+    totalScoreAvg: steps.length > 0 ? Math.round(scoreSum / steps.length) : 0,
+  };
+}
+
+/**
+ * 格式化單一參與者的個人專屬文字攻略（方便私訊發給朋友）
+ */
+export function formatIndividualPlanText(
+  itinerary: IndividualPlanItinerary,
+  match: MatchStationSchedule
+): string {
+  const lines: string[] = [];
+  lines.push(`【${itinerary.participant.name} 專屬】連莊女孩主場換位攻略`);
+  lines.push(`賽事日期：${match.dateLabel}（vs ${match.opponent}）`);
+  lines.push(`首推女孩：#${itinerary.targetGirl.number} ${itinerary.targetGirl.name}`);
+  lines.push(`-----------------------------------`);
+
+  itinerary.steps.forEach((step, idx) => {
+    const seatText = step.assignedSeat ? step.assignedSeat.label : '候補 / 無座位';
+    const moveAlert = step.needsMoveFromPrevSet
+      ? ` ⚠️【局間換位】請由 ${step.prevSeatLabel} 移至此席`
+      : '';
+    const frontText = step.frontGirlAfter10
+      ? `（正對：破 10 分 ${step.frontGirlAfter10.name}）`
+      : '';
+
+    lines.push(`局數 ${idx + 1} · ${step.setLabel}：`);
+    lines.push(`  → 請就座：${seatText} [${step.rankBadge}]${frontText}`);
+    lines.push(`  → 視角分析：${step.viewNote}`);
+    if (moveAlert) {
+      lines.push(`  ${moveAlert}`);
+    }
+    lines.push('');
+  });
+
+  lines.push(`工具網址：https://mouse170.github.io/ace_viva_change_seat_plan/`);
+  lines.push(`※ 粉絲自製非官方應援工具，實際站位依球團現場公告為準。`);
+
+  return lines.join('\n');
+}
+
 const ZONE_INDEX: Record<AceZoneId, number> = { A: 0, B: 1, C: 2 };
 
 // 0: 1-8 號 (中心 5), 1: 9-15 號 (中心 12), 2: 16-23 號 (中心 19.5)

@@ -5,6 +5,8 @@ interface PlanCardModalProps {
   onClose: () => void;
   imageUrl: string | null;
   matchDateLabel: string;
+  modalTitle?: string;
+  fileNamePrefix?: string;
 }
 
 export const PlanCardModal: React.FC<PlanCardModalProps> = ({
@@ -12,6 +14,8 @@ export const PlanCardModal: React.FC<PlanCardModalProps> = ({
   onClose,
   imageUrl,
   matchDateLabel,
+  modalTitle = '排班換位專屬攻略圖卡預覽',
+  fileNamePrefix = 'ACE_VIVA_排班換位表',
 }) => {
   const [copySuccess, setCopySuccess] = useState(false);
 
@@ -21,7 +25,7 @@ export const PlanCardModal: React.FC<PlanCardModalProps> = ({
     if (!imageUrl) return;
     const a = document.createElement('a');
     a.href = imageUrl;
-    a.download = `ACE_VIVA_排班換位表_${matchDateLabel.replace(/[\/\s:]/g, '_')}.png`;
+    a.download = `${fileNamePrefix}_${matchDateLabel.replace(/[\/\s:]/g, '_')}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -55,7 +59,7 @@ export const PlanCardModal: React.FC<PlanCardModalProps> = ({
               HIGH-RESOLUTION STRATEGY CARD
             </span>
             <h3 className="text-lg font-black sm:text-xl">
-              排班換位專屬攻略圖卡預覽
+              {modalTitle}
             </h3>
           </div>
           <button

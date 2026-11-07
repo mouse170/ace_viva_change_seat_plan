@@ -388,3 +388,243 @@ export async function renderFullMatchPlanCard(
 
   return canvas.toDataURL('image/png', 0.95);
 }
+
+/**
+ * 繪製單一參與者的「個人專屬換位攻略圖卡」
+ */
+export async function renderIndividualPlanCard(
+  itinerary: import('./seatPlannerEngine').IndividualPlanItinerary,
+  match: import('../data/schedule').MatchStationSchedule
+): Promise<string> {
+  // 預先載入女孩頭像圖片
+  const avatarPromises: Promise<any>[] = [];
+  avatarPromises.push(preloadImage(`./images/avatars/${itinerary.targetGirl.id}.jpg`));
+  itinerary.steps.forEach((s) => {
+    if (s.frontGirlInit) avatarPromises.push(preloadImage(`./images/avatars/${s.frontGirlInit.id}.jpg`));
+    if (s.frontGirlAfter10) avatarPromises.push(preloadImage(`./images/avatars/${s.frontGirlAfter10.id}.jpg`));
+  });
+  await Promise.all(avatarPromises);
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Cannot get 2d context');
+
+  const cardWidth = 840;
+  const headerHeight = 240;
+  const stepCardHeight = 175;
+  const numSteps = itinerary.steps.length;
+  const stepsTotalHeight = numSteps * (stepCardHeight + 16);
+  const footerHeight = 140;
+  const totalHeight = headerHeight + stepsTotalHeight + footerHeight;
+
+  canvas.width = cardWidth;
+  canvas.height = totalHeight;
+
+  // 背景：深海藍漸層
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, totalHeight);
+  bgGrad.addColorStop(0, '#191838');
+  bgGrad.addColorStop(0.2, '#212047');
+  bgGrad.addColorStop(0.85, '#212047');
+  bgGrad.addColorStop(1, '#15142E');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, cardWidth, totalHeight);
+
+  // 頂部彩色條紋
+  const glowGrad = ctx.createLinearGradient(0, 0, cardWidth, 0);
+  glowGrad.addColorStop(0, '#5ECBC0');
+  glowGrad.addColorStop(0.5, '#5BAE84');
+  glowGrad.addColorStop(1, '#E2B855');
+  ctx.fillStyle = glowGrad;
+  ctx.fillRect(0, 0, cardWidth, 8);
+
+  // 1. Header 區塊
+  let curY = 40;
+  ctx.save();
+  // 標籤
+  drawRoundedRect(ctx, 40, curY, 260, 30, 15, 'rgba(94, 203, 192, 0.16)', '#5ECBC0', 1.5);
+  ctx.fillStyle = '#7ADAD0';
+  ctx.font = 'bold 13px "JetBrains Mono", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('PERSONAL SEAT ITINERARY', 170, curY + 15);
+
+  // 朋友姓名
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '900 34px "Noto Sans TC", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(`【${itinerary.participant.name}】專屬換位攻略卡`, 40, curY + 70);
+
+  // 賽事資訊
+  ctx.fillStyle = '#E2B855';
+  ctx.font = 'bold 17px "Noto Sans TC", sans-serif';
+  ctx.fillText(`${match.dateLabel} · vs ${match.opponent}（${match.themeName}）`, 40, curY + 105);
+  ctx.restore();
+
+  // 首推女孩資訊膠囊卡
+  const oshiCardY = curY + 125;
+  drawRoundedRect(ctx, 40, oshiCardY, cardWidth - 80, 80, 18, 'rgba(255, 255, 255, 0.06)', 'rgba(94, 203, 192, 0.35)', 1.5);
+
+  const targetAvatarImg = imageCache.get(`./images/avatars/${itinerary.targetGirl.id}.jpg`) || null;
+  drawCircularAvatar(ctx, targetAvatarImg, itinerary.targetGirl.name, 85, oshiCardY + 40, 30, '#5ECBC0', 2.5);
+
+  ctx.save();
+  ctx.fillStyle = '#7ADAD0';
+  ctx.font = 'bold 12px "JetBrains Mono", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(`TARGET GIRL · 第一志願心儀女孩`, 130, oshiCardY + 16);
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '900 22px "Noto Sans TC", sans-serif';
+  ctx.fillText(`#${itinerary.targetGirl.number} ${itinerary.targetGirl.name}`, 130, oshiCardY + 36);
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.font = 'bold 13px "Noto Sans TC", sans-serif';
+  ctx.fillText(`${itinerary.targetGirl.roleBadge} · 2F ACE 集氣區應援`, 320, oshiCardY + 43);
+  ctx.restore();
+
+  // 2. 各局換位行程時序清單
+  curY = headerHeight + 10;
+
+  itinerary.steps.forEach((step, sIdx) => {
+    const cardY = curY;
+    const cardW = cardWidth - 80;
+    const isMoved = step.needsMoveFromPrevSet;
+
+    // 單局卡片背景
+    drawRoundedRect(
+      ctx,
+      40,
+      cardY,
+      cardW,
+      stepCardHeight,
+      20,
+      isMoved ? 'rgba(226, 184, 85, 0.08)' : 'rgba(255, 255, 255, 0.05)',
+      isMoved ? '#E2B855' : 'rgba(255, 255, 255, 0.12)',
+      isMoved ? 2 : 1.5
+    );
+
+    // (A) 左側局數標記
+    ctx.save();
+    drawRoundedRect(ctx, 60, cardY + 20, 110, 36, 10, '#5BAE84', undefined, 0);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '900 16px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(step.setShortLabel, 115, cardY + 38);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.font = 'bold 13px "Noto Sans TC", sans-serif';
+    ctx.fillText(step.setLabel, 115, cardY + 68);
+    ctx.restore();
+
+    // (B) 中間座位大徽章
+    ctx.save();
+    const seatBoxX = 195;
+    if (step.assignedSeat) {
+      drawRoundedRect(ctx, seatBoxX, cardY + 20, 180, 52, 12, '#5ECBC0', undefined, 0);
+      ctx.fillStyle = '#212047';
+      ctx.font = '900 24px "JetBrains Mono", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(step.assignedSeat.label, seatBoxX + 90, cardY + 46);
+    } else {
+      drawRoundedRect(ctx, seatBoxX, cardY + 20, 180, 52, 12, 'rgba(255,255,255,0.15)', undefined, 0);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 16px "Noto Sans TC", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('候補 / 無席', seatBoxX + 90, cardY + 46);
+    }
+    ctx.restore();
+
+    // (C) 視野評級徽章
+    let rankBg = '#5BAE84';
+    if (step.rankLevel === 'perfect') rankBg = '#E2B855';
+    if (step.rankLevel === 'poor') rankBg = 'rgba(255,255,255,0.2)';
+    drawRoundedRect(ctx, 390, cardY + 28, 120, 34, 10, rankBg, undefined, 0);
+    ctx.save();
+    ctx.fillStyle = step.rankLevel === 'perfect' ? '#212047' : '#FFFFFF';
+    ctx.font = 'bold 14px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(step.rankBadge, 450, cardY + 45);
+    ctx.restore();
+
+    // (D) 換位行動指引標籤（右側）
+    ctx.save();
+    const actionBoxX = 530;
+    if (isMoved && step.prevSeatLabel) {
+      drawRoundedRect(ctx, actionBoxX, cardY + 20, 240, 52, 12, '#E2B855', undefined, 0);
+      ctx.fillStyle = '#212047';
+      ctx.font = '900 15px "Noto Sans TC", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⚠️ 本局起身換位', actionBoxX + 120, cardY + 36);
+      ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
+      ctx.fillText(`由 ${step.prevSeatLabel} 移入本座`, actionBoxX + 120, cardY + 54);
+    } else {
+      drawRoundedRect(ctx, actionBoxX, cardY + 20, 240, 52, 12, 'rgba(94, 203, 192, 0.15)', '#5ECBC0', 1.5);
+      ctx.fillStyle = '#7ADAD0';
+      ctx.font = 'bold 15px "Noto Sans TC", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('✓ 局間續留本座', actionBoxX + 120, cardY + 36);
+      ctx.font = '500 12px "Noto Sans TC", sans-serif';
+      ctx.fillText('無須起身更換看台席位', actionBoxX + 120, cardY + 54);
+    }
+    ctx.restore();
+
+    // (E) 下半部正對女孩與視角分析
+    ctx.save();
+    const bottomInfoY = cardY + 86;
+    drawRoundedRect(ctx, 60, bottomInfoY, cardW - 40, 70, 12, 'rgba(33, 32, 71, 0.65)', 'rgba(94, 203, 192, 0.2)', 1);
+
+    // 正對女孩頭像與姓名
+    if (step.frontGirlAfter10) {
+      const fImg = imageCache.get(`./images/avatars/${step.frontGirlAfter10.id}.jpg`) || null;
+      drawCircularAvatar(ctx, fImg, step.frontGirlAfter10.name, 90, bottomInfoY + 35, 22, '#5BAE84', 2);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 14px "Noto Sans TC", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`正前方女孩：${step.frontGirlAfter10.name}（破 10 分）`, 125, bottomInfoY + 25);
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.font = 'bold 14px "Noto Sans TC", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('正前方直視：無對應站位女孩', 80, bottomInfoY + 25);
+    }
+
+    // 視角描述
+    ctx.fillStyle = '#A3E3DA';
+    ctx.font = '500 13px "Noto Sans TC", sans-serif';
+    ctx.fillText(`視角分析：${step.viewNote}`, 125, bottomInfoY + 48);
+    ctx.restore();
+
+    curY += stepCardHeight + 16;
+  });
+
+  // 3. Footer 區塊
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.font = '500 13px "Noto Sans TC", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
+  ctx.fillText(
+    `本圖卡由 ACE VIVA 粉絲排班換位工具自動生成 · 產出時間：${nowStr}`,
+    cardWidth / 2,
+    totalHeight - 75
+  );
+  ctx.fillText(
+    `https://mouse170.github.io/ace_viva_change_seat_plan/ · 非官方自製工具，站位以球團實際公告為準`,
+    cardWidth / 2,
+    totalHeight - 50
+  );
+  ctx.restore();
+
+  return canvas.toDataURL('image/png', 0.95);
+}

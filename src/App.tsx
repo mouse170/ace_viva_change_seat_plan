@@ -9,8 +9,12 @@ import {
   type Participant,
   parseSeatsInput,
   solveFullMatchPlan,
+  getIndividualPlanItinerary,
 } from './utils/seatPlannerEngine';
-import { renderFullMatchPlanCard } from './utils/planCardCanvasRenderer';
+import {
+  renderFullMatchPlanCard,
+  renderIndividualPlanCard,
+} from './utils/planCardCanvasRenderer';
 import { SeatSelectorSection } from './components/SeatSelectorSection';
 import { ParticipantsSection } from './components/ParticipantsSection';
 import { PlanResultsSection } from './components/PlanResultsSection';
@@ -64,6 +68,13 @@ export const App: React.FC = () => {
   const [isCardModalOpen, setIsCardModalOpen] = useState(false);
   const [generatedCardUrl, setGeneratedCardUrl] = useState<string | null>(null);
   const [isGeneratingCard, setIsGeneratingCard] = useState(false);
+  const [cardModalConfig, setCardModalConfig] = useState<{
+    title: string;
+    fileNamePrefix: string;
+  }>({
+    title: '全隊排班換位表圖卡預覽',
+    fileNamePrefix: 'ACE_VIVA_全隊排班表',
+  });
 
   // 5. 啦啦隊介紹收納彈窗
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
@@ -109,15 +120,40 @@ export const App: React.FC = () => {
     return solveFullMatchPlan(currentMatch, heldSeats, participants);
   }, [currentMatch, heldSeats, participants]);
 
-  // 生成排班高清圖卡
-  const handleGenerateCard = async () => {
+  // 生成全隊排班高清圖卡
+  const handleGenerateGroupCard = async () => {
     try {
       setIsGeneratingCard(true);
+      setCardModalConfig({
+        title: '全隊排班換位總覽圖卡預覽',
+        fileNamePrefix: 'ACE_VIVA_全隊換位排班表',
+      });
       setIsCardModalOpen(true);
       const dataUrl = await renderFullMatchPlanCard(planResult);
       setGeneratedCardUrl(dataUrl);
-    } catch (err) {
+    } catch {
       alert('圖卡生成失敗，請稍後再試。');
+    } finally {
+      setIsGeneratingCard(false);
+    }
+  };
+
+  // 生成個人專屬換位攻略圖卡
+  const handleGenerateIndividualCard = async (participantId: string) => {
+    const itinerary = getIndividualPlanItinerary(planResult, participantId);
+    if (!itinerary) return;
+
+    try {
+      setIsGeneratingCard(true);
+      setCardModalConfig({
+        title: `【${itinerary.participant.name}】專屬換位攻略圖卡預覽`,
+        fileNamePrefix: `ACE_VIVA_${itinerary.participant.name}_個人換位攻略`,
+      });
+      setIsCardModalOpen(true);
+      const dataUrl = await renderIndividualPlanCard(itinerary, currentMatch);
+      setGeneratedCardUrl(dataUrl);
+    } catch {
+      alert('個人圖卡生成失敗，請稍後再試。');
     } finally {
       setIsGeneratingCard(false);
     }
@@ -248,7 +284,8 @@ export const App: React.FC = () => {
         <div className="mt-6">
           <PlanResultsSection
             planResult={planResult}
-            onGenerateImageCard={handleGenerateCard}
+            onGenerateImageCard={handleGenerateGroupCard}
+            onGenerateIndividualCard={handleGenerateIndividualCard}
             isGeneratingImage={isGeneratingCard}
           />
         </div>
@@ -299,6 +336,8 @@ export const App: React.FC = () => {
         onClose={() => setIsCardModalOpen(false)}
         imageUrl={generatedCardUrl}
         matchDateLabel={currentMatch.dateLabel}
+        modalTitle={cardModalConfig.title}
+        fileNamePrefix={cardModalConfig.fileNamePrefix}
       />
 
       {/* 啦啦隊介紹收納彈窗（點選開啟，不常駐頁面） */}
