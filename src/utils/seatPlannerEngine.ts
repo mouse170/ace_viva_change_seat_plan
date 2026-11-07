@@ -96,6 +96,7 @@ export interface ParticipantSetAssignment {
   needsMoveFromPrevSet: boolean;
   prevSeatLabel?: string;
   matchedExceptionNote?: string;
+  preferenceOrder?: number; // 喜好順位：1 = 首推, 2 = 二推, 3 = 三推
 }
 
 export interface SetPlanResult {
@@ -151,6 +152,7 @@ export interface IndividualItineraryStep {
   prevSeatLabel?: string;
   matchedExceptionNote?: string;
   targetGirlRadar?: TargetGirlRadarPill;
+  preferenceOrder?: number; // 喜好順位：1 = 首推, 2 = 二推, 3 = 三推
 }
 
 export interface IndividualPlanItinerary {
@@ -360,6 +362,7 @@ function evaluateParticipantSeatSatisfaction(
   rankLevel: 'perfect' | 'great' | 'good' | 'fair' | 'poor';
   rankBadge: string;
   matchedExceptionNote?: string;
+  preferenceOrder?: number;
 } {
   const memberMap = new Map(MEMBERS.map((m) => [m.id, m]));
 
@@ -412,23 +415,34 @@ function evaluateParticipantSeatSatisfaction(
     }
   }
 
-  // 3. 遍歷可能的心儀女孩，算出最高滿意度
+  // 3. 遍歷可能的心儀女孩，依照「喜好順序（志願序加權）」計算最高滿意度
+  // 第 1 志願（首推）：加權係數 1.0（基準滿額）
+  // 第 2 志願（二推）：加權係數 0.78，階梯遞減 20 分
+  // 第 3 志願（三推）：加權係數 0.58，階梯遞減 38 分
+  const PREF_ORDER_WEIGHTS = [1.0, 0.78, 0.58];
+  const PREF_ORDER_PENALTIES = [0, 20, 38];
+
   let bestScore = -999;
   let bestGirlId = effectiveGirlIds[0];
+  let bestPreferenceOrder = 1;
   let bestEvalResult: ReturnType<typeof evaluateSingleGirlSeat> | null = null;
 
-  for (const gId of effectiveGirlIds) {
+  effectiveGirlIds.forEach((gId, prefIdx) => {
     const singleEval = evaluateSingleGirlSeat(seat, gId, setStation);
-    let score = singleEval.score;
+    const weight = PREF_ORDER_WEIGHTS[prefIdx] ?? 0.45;
+    const penalty = PREF_ORDER_PENALTIES[prefIdx] ?? 45;
 
-    // 若勾選「偏好正前方直視（preferDirectFront）」：若該座位的正前方（破 10 分或開局）正好是此女孩，給予超高直視獎勵
+    // 依喜好順序加權：優先保證首推，二推/三推僅在首推距離過遠時作為備選候補
+    let score = singleEval.score * weight - penalty;
+
+    // 若勾選「偏好正前方直視（preferDirectFront）」：依志願序給予直視加成獎勵
     if (participant.preferDirectFront) {
       if (singleEval.isDirectFrontAfter) {
-        score += 85;
+        score += prefIdx === 0 ? 85 : 55;
       } else if (singleEval.isDirectFrontInit) {
-        score += 45;
+        score += prefIdx === 0 ? 45 : 30;
       } else {
-        score -= 25; // 非直視席相對扣分
+        score -= prefIdx === 0 ? 25 : 10;
       }
     }
 
@@ -444,9 +458,10 @@ function evaluateParticipantSeatSatisfaction(
     if (score > bestScore) {
       bestScore = score;
       bestGirlId = gId;
+      bestPreferenceOrder = prefIdx + 1;
       bestEvalResult = singleEval;
     }
-  }
+  });
 
   if (!bestEvalResult) {
     bestEvalResult = evaluateSingleGirlSeat(seat, bestGirlId, setStation);
@@ -476,6 +491,11 @@ function evaluateParticipantSeatSatisfaction(
     rankBadge = '跨大區視角';
   }
 
+  // 若命中第 2、3 志願女孩，在徽章上標示志願序
+  if (effectiveGirlIds.length > 1 && bestPreferenceOrder > 1) {
+    rankBadge = `${rankBadge} (${bestPreferenceOrder}推)`;
+  }
+
   return {
     satisfactionScore: Math.round(bestScore),
     bestTargetGirlId: bestGirlId,
@@ -489,6 +509,7 @@ function evaluateParticipantSeatSatisfaction(
     rankLevel,
     rankBadge,
     matchedExceptionNote: exceptionNote,
+    preferenceOrder: bestPreferenceOrder,
   };
 }
 
@@ -671,6 +692,7 @@ export function solveSetPlan(
         needsMoveFromPrevSet,
         prevSeatLabel,
         matchedExceptionNote: evaluation.matchedExceptionNote,
+        preferenceOrder: evaluation.preferenceOrder,
       });
     } else {
       unassignedParticipants.push(p);
@@ -794,6 +816,7 @@ export function getIndividualPlanItinerary(
         prevSeatLabel: assignment.prevSeatLabel,
         matchedExceptionNote: assignment.matchedExceptionNote,
         targetGirlRadar,
+        preferenceOrder: assignment.preferenceOrder,
       });
     }
   }

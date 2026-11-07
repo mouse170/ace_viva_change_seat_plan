@@ -268,7 +268,11 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                             {/* 詳細資訊 */}
                             <div className="mt-3 space-y-1.5 border-t border-[#212047]/5 pt-2.5 text-xs">
                               <div className="flex items-center justify-between">
-                                <span className="text-[#212047]/70">第一志願目標：</span>
+                                <span className="text-[#212047]/70">
+                                  {a.preferenceOrder && a.preferenceOrder > 1
+                                    ? `本局目標（${a.preferenceOrder}推）：`
+                                    : '首推目標女孩：'}
+                                </span>
                                 <span className="font-bold text-[#212047]">
                                   #{a.targetGirl.number} {a.targetGirl.name}
                                 </span>

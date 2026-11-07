@@ -47,6 +47,8 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
     if (selectedGirlIds.includes(girlId)) {
       if (selectedGirlIds.length > 1) {
         setSelectedGirlIds(selectedGirlIds.filter((id) => id !== girlId));
+      } else {
+        alert('至少需保留 1 位心儀女孩。');
       }
     } else {
       if (selectedGirlIds.length < 3) {
@@ -55,6 +57,24 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
         alert('最多可複選 3 位心儀女孩。');
       }
     }
+  };
+
+  const moveGirlPreference = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= selectedGirlIds.length) return;
+    const nextList = [...selectedGirlIds];
+    const temp = nextList[index];
+    nextList[index] = nextList[targetIndex];
+    nextList[targetIndex] = temp;
+    setSelectedGirlIds(nextList);
+  };
+
+  const removeGirlFromSelection = (girlId: string) => {
+    if (selectedGirlIds.length <= 1) {
+      alert('至少需保留 1 位心儀女孩。');
+      return;
+    }
+    setSelectedGirlIds(selectedGirlIds.filter((id) => id !== girlId));
   };
 
   const handleAddParticipant = () => {
@@ -263,7 +283,8 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
             {/* 女孩多選膠囊清單 */}
             <div className="mt-2 flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
               {attendingMembers.map((m) => {
-                const isSelected = selectedGirlIds.includes(m.id);
+                const orderIdx = selectedGirlIds.indexOf(m.id);
+                const isSelected = orderIdx !== -1;
                 return (
                   <button
                     key={m.id}
@@ -284,11 +305,98 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
                       }}
                     />
                     <span>#{m.number} {m.name}</span>
-                    {isSelected && <span className="text-[#5ECBC0]">✓</span>}
+                    {isSelected && (
+                      <span className="rounded bg-[#5ECBC0] px-1.5 py-0.2 text-[10px] font-black text-[#212047]">
+                        {orderIdx === 0 ? '1推' : `${orderIdx + 1}推`}
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
+
+            {/* 喜好順位排序調整條（當選取多位女孩時呈現） */}
+            {selectedGirlIds.length > 0 && (
+              <div className="mt-2.5 rounded-xl bg-[#F4FAF8] p-2.5 ring-1 ring-[#212047]/10">
+                <div className="flex items-center justify-between pb-1.5">
+                  <span className="text-[11px] font-bold text-[#212047]/80">
+                    目前喜好順序（第 1 位享有最高優先權與滿額加權）：
+                  </span>
+                  <span className="text-[10px] text-[#212047]/60">
+                    可點擊 ▲/▼ 調整順位
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {selectedGirlIds.map((gId, gIdx) => {
+                    const girl = memberMap.get(gId);
+                    if (!girl) return null;
+                    const isFirst = gIdx === 0;
+                    const isLast = gIdx === selectedGirlIds.length - 1;
+                    return (
+                      <div
+                        key={gId}
+                        className="flex items-center justify-between rounded-lg bg-white px-2.5 py-1 text-xs shadow-2xs ring-1 ring-[#212047]/5"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`rounded-md px-1.5 py-0.5 text-[10px] font-black ${
+                              isFirst
+                                ? 'bg-[#5ECBC0] text-[#212047]'
+                                : 'bg-[#212047]/10 text-[#212047]/80'
+                            }`}
+                          >
+                            {isFirst ? '★ 1推（首選）' : `${gIdx + 1}推（次選）`}
+                          </span>
+                          <img
+                            src={`./images/avatars/${girl.id}.jpg`}
+                            alt=""
+                            className="h-4 w-4 rounded-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                          <span className="font-bold text-[#212047]">
+                            #{girl.number} {girl.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {selectedGirlIds.length > 1 && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={isFirst}
+                                onClick={() => moveGirlPreference(gIdx, 'up')}
+                                className="h-6 w-6 rounded bg-[#212047]/5 text-[11px] font-bold text-[#212047] disabled:opacity-30 hover:bg-[#212047]/10"
+                                title="提升志願順位"
+                              >
+                                ▲
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isLast}
+                                onClick={() => moveGirlPreference(gIdx, 'down')}
+                                className="h-6 w-6 rounded bg-[#212047]/5 text-[11px] font-bold text-[#212047] disabled:opacity-30 hover:bg-[#212047]/10"
+                                title="調降志願順位"
+                              >
+                                ▼
+                              </button>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeGirlFromSelection(gId)}
+                            className="ml-1 h-6 w-6 rounded text-xs font-bold text-red-500 hover:bg-red-50"
+                            title="移除"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* 局數特殊例外折疊面板 */}
             <div className="mt-3">
@@ -469,14 +577,22 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
                   <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-[#212047]/5 pt-2">
                     <span className="text-[11px] font-bold text-[#212047]/60">心儀女孩：</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {(p.targetGirlIds || []).map((gId) => {
+                      {(p.targetGirlIds || []).map((gId, gIdx) => {
                         const girl = memberMap.get(gId);
                         if (!girl) return null;
+                        const isFirst = gIdx === 0;
                         return (
                           <div
                             key={gId}
-                            className="inline-flex items-center gap-1 rounded-lg bg-[#F4FAF8] px-2 py-0.5 text-xs font-bold text-[#212047] ring-1 ring-[#212047]/10"
+                            className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-bold ring-1 ${
+                              isFirst
+                                ? 'bg-[#5ECBC0]/20 text-[#212047] ring-[#5ECBC0]'
+                                : 'bg-[#F4FAF8] text-[#212047]/80 ring-[#212047]/10'
+                            }`}
                           >
+                            <span className="text-[10px] font-black text-[#3F8E67]">
+                              {isFirst ? '1推' : `${gIdx + 1}推`}
+                            </span>
                             <img
                               src={`./images/avatars/${girl.id}.jpg`}
                               alt=""
