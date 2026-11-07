@@ -411,7 +411,7 @@ export async function renderIndividualPlanCard(
 
   const cardWidth = 840;
   const headerHeight = 240;
-  const stepCardHeight = 225;
+  const stepCardHeight = 238;
   const numSteps = itinerary.steps.length;
   const stepsTotalHeight = numSteps * (stepCardHeight + 16);
   const footerHeight = 140;
@@ -575,59 +575,85 @@ export async function renderIndividualPlanCard(
     }
     ctx.restore();
 
-    // (E) 下半部正對女孩與視角分析 ＆ 方案 B 雷達方位導航
+    // (E) 下半部正對女孩（雙時段）與面向球場雷達圖卡
     ctx.save();
-    const bottomInfoY = cardY + 86;
-    const bottomInfoH = 122;
-    drawRoundedRect(ctx, 60, bottomInfoY, cardW - 40, bottomInfoH, 12, 'rgba(33, 32, 71, 0.65)', 'rgba(94, 203, 192, 0.2)', 1);
+    const bottomInfoY = cardY + 84;
+    const bottomInfoH = 138;
+    drawRoundedRect(ctx, 60, bottomInfoY, cardW - 40, bottomInfoH, 12, 'rgba(17, 26, 46, 0.85)', 'rgba(94, 203, 192, 0.3)', 1);
 
-    // 正對女孩頭像與姓名
+    // 雙時段正前方直視
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('本座正前直視：', 75, bottomInfoY + 22);
+
+    let curPillX = 160;
+    if (step.frontGirlInit) {
+      const fInitImg = imageCache.get(`./images/avatars/${step.frontGirlInit.id}.jpg`) || null;
+      drawCircularAvatar(ctx, fInitImg, step.frontGirlInit.name, curPillX + 12, bottomInfoY + 22, 12, '#5ECBC0', 1.5);
+      ctx.fillStyle = '#5ECBC0';
+      ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
+      ctx.fillText(`0-10分 ${step.frontGirlInit.name}`, curPillX + 30, bottomInfoY + 22);
+      curPillX += 135;
+    }
+
     if (step.frontGirlAfter10) {
-      const fImg = imageCache.get(`./images/avatars/${step.frontGirlAfter10.id}.jpg`) || null;
-      drawCircularAvatar(ctx, fImg, step.frontGirlAfter10.name, 90, bottomInfoY + 28, 20, '#5BAE84', 2);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 14px "Noto Sans TC", sans-serif';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`本座正前方直視：${step.frontGirlAfter10.name}（決勝破 10 分時段）`, 122, bottomInfoY + 20);
-    } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.font = 'bold 14px "Noto Sans TC", sans-serif';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('本座正前方直視：無對應站位女孩', 80, bottomInfoY + 20);
+      const fAfterImg = imageCache.get(`./images/avatars/${step.frontGirlAfter10.id}.jpg`) || null;
+      drawCircularAvatar(ctx, fAfterImg, step.frontGirlAfter10.name, curPillX + 12, bottomInfoY + 22, 12, '#F59E0B', 1.5);
+      ctx.fillStyle = '#FBBF24';
+      ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
+      ctx.fillText(`破10分 ${step.frontGirlAfter10.name}`, curPillX + 30, bottomInfoY + 22);
+      curPillX += 135;
     }
 
     // 視角描述
     ctx.fillStyle = '#A3E3DA';
-    ctx.font = '500 12px "Noto Sans TC", sans-serif';
-    ctx.fillText(`視角短評：${step.viewNote}`, 122, bottomInfoY + 38);
+    ctx.font = '500 11px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(step.viewNote, cardW + 10, bottomInfoY + 22);
 
-    // 方案 B：主要心儀女孩方位導航徽章條
+    // 方案 B：觀眾面向球場看主推雷達橫樑
     if (step.targetGirlRadar) {
       const radar = step.targetGirlRadar;
-      const barY = bottomInfoY + 56;
+      const barY = bottomInfoY + 44;
       const barW = cardW - 60;
-      drawRoundedRect(ctx, 70, barY, barW, 54, 8, 'rgba(0, 0, 0, 0.3)', 'rgba(94, 203, 192, 0.35)', 1);
+      drawRoundedRect(ctx, 70, barY, barW, 80, 8, 'rgba(14, 21, 38, 0.95)', 'rgba(255, 255, 255, 0.1)', 1);
 
-      // 小標
-      ctx.fillStyle = '#E2B855';
-      ctx.font = '900 12px "Noto Sans TC", sans-serif';
-      ctx.textAlign = 'left';
+      // 看台面向球場三區分割條
+      const colW = barW / 3;
+      drawRoundedRect(ctx, 70, barY, colW, 24, 6, 'rgba(56, 189, 248, 0.15)', undefined, 0);
+      drawRoundedRect(ctx, 70 + colW, barY, colW, 24, 6, 'rgba(52, 211, 153, 0.15)', undefined, 0);
+      drawRoundedRect(ctx, 70 + colW * 2, barY, colW, 24, 6, 'rgba(251, 191, 36, 0.15)', undefined, 0);
+
+      ctx.fillStyle = '#7DD3FC';
+      ctx.font = 'bold 11px "Noto Sans TC", sans-serif';
+      ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`★ 目標【${radar.targetGirlName}】座位視角雷達（面向球場）：`, 80, barY + 16);
+      ctx.fillText('◀ 左手邊：2F C 區 (23→1號)', 70 + colW / 2, barY + 12);
 
-      // 0-10 分膠囊
-      const p1Text = `開局(0–10分)：${radar.initial.zone}區 ${radar.initial.slotName} · ${radar.initial.offsetText}`;
-      const p2Text = `破10分換位：${radar.after10.zone}區 ${radar.after10.slotName} · ${radar.after10.offsetText}`;
+      ctx.fillStyle = '#6EE7B7';
+      ctx.fillText('正中央：2F B 區 (23→1號)', 70 + colW * 1.5, barY + 12);
 
-      ctx.fillStyle = radar.initial.isDirectFront ? '#5ECBC0' : '#FFFFFF';
+      ctx.fillStyle = '#FCD34D';
+      ctx.fillText('右手邊：2F A 區 (23→1號) ▶', 70 + colW * 2.5, barY + 12);
+
+      // 主推方位文字
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#5ECBC0';
       ctx.font = 'bold 12px "JetBrains Mono", sans-serif';
-      ctx.fillText(p1Text, 80, barY + 38);
+      const p1Text = `0–10分: ${radar.initial.targetSeatLabel} (${radar.initial.offsetText})`;
+      ctx.fillText(p1Text, 85, barY + 44);
 
-      ctx.fillStyle = radar.after10.isDirectFront ? '#5ECBC0' : '#FFFFFF';
-      ctx.fillText(p2Text, 410, barY + 38);
+      ctx.fillStyle = '#FBBF24';
+      const p2Text = `破10分: ${radar.after10.targetSeatLabel} (${radar.after10.offsetText})`;
+      ctx.fillText(p2Text, 85, barY + 64);
+
+      // 右側座位標記
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '900 12px "Noto Sans TC", sans-serif';
+      ctx.fillText(`▲ 座位：${radar.seatLabel}`, 70 + barW - 15, barY + 54);
     }
     ctx.restore();
 

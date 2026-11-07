@@ -124,12 +124,18 @@ export interface PhaseRadarDetail {
   isSameZone: boolean;
   offsetSeats: number;
   offsetText: string;
+  targetSeatLabel: string; // 例如 "C19"、"B12"、"A12"
+  targetXPercent: number;  // 橫樑 X 軸百分比 (0 ~ 100%)
+  seatXPercent: number;    // 觀眾 X 軸百分比 (0 ~ 100%)
+  angleDegrees: number;    // 偏角（負為左偏，正為右偏，0 為直視）
 }
 
 export interface TargetGirlRadarPill {
   targetGirlId: string;
   targetGirlName: string;
   targetGirlNumber: string;
+  targetGirlZone: AceZoneId; // 該局女孩所在主力大區
+  seatLabel: string;
   initial: PhaseRadarDetail;
   after10: PhaseRadarDetail;
 }
@@ -164,22 +170,59 @@ export interface IndividualPlanItinerary {
   totalScoreAvg: number;
 }
 
-const ZONE_INDEX: Record<AceZoneId, number> = { A: 0, B: 1, C: 2 };
+/**
+ * 觀眾面向球場視角之全域 X 座標計算（0 ~ 68）：
+ * 左手邊：2F C 區（23 號 -> 1 號）-> X: 0 ~ 22
+ * 正中央：2F B 區（23 號 -> 1 號）-> X: 23 ~ 45
+ * 右手邊：2F A 區（23 號 -> 1 號）-> X: 46 ~ 68
+ */
+export function getSpectatorSeatGlobalX(zone: AceZoneId, seatNum: number): number {
+  const clampedSeat = Math.max(1, Math.min(23, seatNum));
+  const innerOffset = 23 - clampedSeat; // 23 號在該區最左 (0)，1 號在該區最右 (22)
+  switch (zone) {
+    case 'C':
+      return innerOffset;
+    case 'B':
+      return 23 + innerOffset;
+    case 'A':
+      return 46 + innerOffset;
+  }
+}
 
-const SLOT_CORE_CENTERS: Record<0 | 1 | 2, number> = {
-  0: 5,
-  1: 12,
-  2: 19.5,
-};
+/**
+ * 女孩站位 slot 在觀眾面向球場視角之 X 座標中心：
+ * slot 2: 16–23 號席位區段（該區偏左，中心約 19.5 號席位）-> 23 - 19.5 = 3.5
+ * slot 1: 9–15 號席位區段（該區正中，中心 12 號席位）-> 23 - 12 = 11
+ * slot 0: 1–8 號席位區段（該區偏右，中心約 4.5 號席位）-> 23 - 4.5 = 18.5
+ */
+export function getSpectatorGirlGlobalX(zone: AceZoneId, slot: 0 | 1 | 2): number {
+  const slotInnerX: Record<0 | 1 | 2, number> = {
+    2: 3.5,  // 16-23 號
+    1: 11,   // 9-15 號
+    0: 18.5, // 1-8 號
+  };
+  const baseZoneOffset: Record<AceZoneId, number> = {
+    C: 0,
+    B: 23,
+    A: 46,
+  };
+  return baseZoneOffset[zone] + slotInnerX[slot];
+}
 
 const SLOT_NAMES: Record<0 | 1 | 2, string> = {
-  0: '1–8 號',
-  1: '9–15 號',
-  2: '16–23 號',
+  0: '1–8 號（右側）',
+  1: '9–15 號（中央）',
+  2: '16–23 號（左側）',
+};
+
+const SLOT_APPROX_SEAT_NUM: Record<0 | 1 | 2, number> = {
+  0: 5,
+  1: 12,
+  2: 19,
 };
 
 /**
- * 計算單一座位相對於主要心儀女孩的雷達方位膠囊（方案 B）
+ * 計算單一座位相對於主要心儀女孩的雷達方位（依據觀眾面向球場視角）
  */
 export function computeTargetGirlRadar(
   assignedSeat: HeldSeat | null,
@@ -211,11 +254,12 @@ export function computeTargetGirlRadar(
     }
   }
 
-  const sGlobal = ZONE_INDEX[assignedSeat.zone] * 23 + assignedSeat.seat;
+  const sGlobal = getSpectatorSeatGlobalX(assignedSeat.zone, assignedSeat.seat);
 
   const buildPhaseDetail = (zone: AceZoneId, slot: 0 | 1 | 2): PhaseRadarDetail => {
-    const gGlobal = ZONE_INDEX[zone] * 23 + SLOT_CORE_CENTERS[slot];
+    const gGlobal = getSpectatorGirlGlobalX(zone, slot);
     const isSameZone = assignedSeat.zone === zone;
+
     let isDirectFront = false;
     if (isSameZone) {
       if (slot === 0 && assignedSeat.seat >= 1 && assignedSeat.seat <= 8) isDirectFront = true;
@@ -223,16 +267,25 @@ export function computeTargetGirlRadar(
       if (slot === 2 && assignedSeat.seat >= 16 && assignedSeat.seat <= 23) isDirectFront = true;
     }
 
+    // 觀眾面向球場：gGlobal > sGlobal 表示在右邊（A 區方向），gGlobal < sGlobal 表示在左邊（C 區方向）
     const delta = gGlobal - sGlobal;
     const offsetSeats = Math.round(Math.abs(delta));
+    // 假設觀眾看台與球場站位縱深約等同於 26 個席位寬度
+    const angleRad = Math.atan2(delta, 26);
+    const angleDegrees = Math.round((angleRad * 180) / Math.PI);
+
     let offsetText = '▲ 正前方直視';
     if (!isDirectFront) {
-      if (delta > 0) {
+      if (delta < 0) {
         offsetText = isSameZone ? `◀ 左前 ${offsetSeats} 席` : `◀ 左前 ${offsetSeats} 席 (${zone}區)`;
       } else {
         offsetText = isSameZone ? `右前 ${offsetSeats} 席 ▶` : `右前 ${offsetSeats} 席 ▶ (${zone}區)`;
       }
     }
+
+    const targetSeatLabel = `${zone}${SLOT_APPROX_SEAT_NUM[slot]}`;
+    const targetXPercent = Math.max(2, Math.min(98, (gGlobal / 68) * 100));
+    const seatXPercent = Math.max(2, Math.min(98, (sGlobal / 68) * 100));
 
     return {
       zone,
@@ -242,6 +295,10 @@ export function computeTargetGirlRadar(
       isSameZone,
       offsetSeats,
       offsetText,
+      targetSeatLabel,
+      targetXPercent,
+      seatXPercent,
+      angleDegrees,
     };
   };
 
@@ -249,13 +306,15 @@ export function computeTargetGirlRadar(
     targetGirlId: member.id,
     targetGirlName: member.name,
     targetGirlNumber: member.number,
+    targetGirlZone: afterZone,
+    seatLabel: assignedSeat.label,
     initial: buildPhaseDetail(initZone, initSlot),
     after10: buildPhaseDetail(afterZone, afterSlot),
   };
 }
 
 /**
- * 計算觀眾席座位全域座標到特定站位女孩的距離與方向
+ * 計算觀眾席座位全域座標到特定站位女孩的距離與方向（依據觀眾面向球場視角）
  */
 export function calculateSeatToGirlDistance(
   seatZone: AceZoneId,
@@ -263,8 +322,8 @@ export function calculateSeatToGirlDistance(
   girlZone: AceZoneId,
   girlSlotIndex: 0 | 1 | 2
 ): { distance: number; directionText: string; isDirectFront: boolean } {
-  const sGlobal = ZONE_INDEX[seatZone] * 23 + seatNum;
-  const gGlobal = ZONE_INDEX[girlZone] * 23 + SLOT_CORE_CENTERS[girlSlotIndex];
+  const sGlobal = getSpectatorSeatGlobalX(seatZone, seatNum);
+  const gGlobal = getSpectatorGirlGlobalX(girlZone, girlSlotIndex);
   const dist = Math.abs(gGlobal - sGlobal);
 
   const isSameZone = seatZone === girlZone;
@@ -278,7 +337,7 @@ export function calculateSeatToGirlDistance(
   let directionText = '正前方直視';
   if (!isDirectFront) {
     const delta = gGlobal - sGlobal;
-    const dir = delta > 0 ? '左前方' : '右前方';
+    const dir = delta < 0 ? '左前方' : '右前方';
     directionText = isSameZone ? `同區${dir}約 ${Math.round(dist)} 席` : `跨區${dir}約 ${Math.round(dist)} 席`;
   }
 

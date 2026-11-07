@@ -1,10 +1,182 @@
 import React, { useState } from 'react';
 import {
   type FullMatchPlanResult,
+  type TargetGirlRadarPill,
   formatPlanTextForSharing,
   getIndividualPlanItinerary,
   formatIndividualPlanText,
 } from '../utils/seatPlannerEngine';
+import { type AceVivaMember } from '../data/members';
+
+/**
+ * 觀眾面向球場視角看主推女孩雷達圖（依據真實球場看台視角與官方圖卡風格）
+ */
+const VisualSeatRadarCard: React.FC<{
+  radar: TargetGirlRadarPill;
+  frontGirlInit: AceVivaMember | null;
+  frontGirlAfter10: AceVivaMember | null;
+}> = ({ radar, frontGirlInit, frontGirlAfter10 }) => {
+  const seatX = radar.initial.seatXPercent;
+  const initX = radar.initial.targetXPercent;
+  const afterX = radar.after10.targetXPercent;
+
+  return (
+    <div className="mt-3.5 overflow-hidden rounded-2xl border border-[#212047]/20 bg-[#111A2E] text-white shadow-md">
+      {/* 頂部標題與正前女孩直視快速列 */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#18233C] px-3.5 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#E2B855] text-[10px] font-black text-[#212047]">
+            ★
+          </span>
+          <span className="text-xs font-black text-white">
+            {radar.targetGirlName} 在 2F {radar.targetGirlZone} 區
+          </span>
+          <span className="text-[10px] font-medium text-white/60">
+            （面向球場視角雷達圖）
+          </span>
+        </div>
+
+        {/* 本座正前方直視對象 */}
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <span className="font-bold text-white/70">你({radar.seatLabel})正前：</span>
+          {frontGirlInit && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2 py-0.5 font-bold text-[#5ECBC0] ring-1 ring-[#5ECBC0]/30">
+              <img
+                src={`./images/avatars/${frontGirlInit.id}.jpg`}
+                alt=""
+                className="h-3.5 w-3.5 rounded-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+              <span>0-10分 {frontGirlInit.name}</span>
+            </span>
+          )}
+          {frontGirlAfter10 && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2 py-0.5 font-bold text-[#FBBF24] ring-1 ring-[#FBBF24]/30">
+              <img
+                src={`./images/avatars/${frontGirlAfter10.id}.jpg`}
+                alt=""
+                className="h-3.5 w-3.5 rounded-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+              <span>破10分 {frontGirlAfter10.name}</span>
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* 看台面向球場三區橫樑：左 C 區 (23->1) · 中 B 區 (23->1) · 右 A 區 (23->1) */}
+      <div className="grid grid-cols-3 border-b border-white/10 bg-[#0E1526] text-center text-[10px] font-black">
+        <div className="border-r border-white/5 py-1.5 text-sky-300">
+          ◀ 左手邊：2F C 區 (23→1號)
+        </div>
+        <div className="border-r border-white/5 py-1.5 text-emerald-300">
+          正中央：2F B 區 (23→1號)
+        </div>
+        <div className="py-1.5 text-amber-300">
+          右手邊：2F A 區 (23→1號) ▶
+        </div>
+      </div>
+
+      {/* 視覺視角畫布（SVG 射線雷達） */}
+      <div className="relative px-3 py-3">
+        <svg viewBox="0 0 100 80" className="h-36 w-full overflow-visible" preserveAspectRatio="none">
+          <defs>
+            {/* 視線扇形漸層 */}
+            <linearGradient id={`coneGrad-${radar.seatLabel}`} x1="0%" y1="100%" x2="0%" y2="0%">
+              <stop offset="0%" stopColor="#5ECBC0" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#5ECBC0" stopOpacity="0.03" />
+            </linearGradient>
+          </defs>
+
+          {/* 視線好拍扇形錐體（以座位為原點向上發射） */}
+          <polygon
+            points={`${seatX},70 ${Math.max(0, seatX - 16)},12 ${Math.min(100, seatX + 16)},12`}
+            fill={`url(#coneGrad-${radar.seatLabel})`}
+          />
+
+          {/* 開局 0-10 分射線（青綠色虛線） */}
+          <line
+            x1={`${seatX}%`}
+            y1="70%"
+            x2={`${initX}%`}
+            y2="22%"
+            stroke="#5ECBC0"
+            strokeWidth="1.5"
+            strokeDasharray="3 2"
+          />
+
+          {/* 破 10 分決勝射線（金黃色實線） */}
+          <line
+            x1={`${seatX}%`}
+            y1="70%"
+            x2={`${afterX}%`}
+            y2="22%"
+            stroke="#F59E0B"
+            strokeWidth="2.2"
+          />
+
+          {/* 座位基底光暈 */}
+          <circle cx={`${seatX}%`} cy="70%" r="3" fill="#5ECBC0" opacity="0.8" />
+          <circle cx={`${seatX}%`} cy="70%" r="1.5" fill="#FFFFFF" />
+        </svg>
+
+        {/* 絕對定位的女孩站位標籤與頭像 */}
+        {/* 開局 0-10 分女孩站位標籤 */}
+        <div
+          className="absolute top-2.5 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[#111A2E]/90 px-2 py-0.5 text-[10px] font-bold text-[#5ECBC0] ring-1 ring-[#5ECBC0]/70 shadow-xs"
+          style={{ left: `${initX}%` }}
+        >
+          <span className="h-2 w-2 rounded-full bg-[#5ECBC0] ring-2 ring-white/40" />
+          <span>0-10分: {radar.initial.targetSeatLabel}</span>
+          <span className="text-[9px] text-white/80">({radar.initial.offsetText})</span>
+        </div>
+
+        {/* 破 10 分女孩站位標籤 */}
+        <div
+          className="absolute top-7 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[#111A2E]/90 px-2 py-0.5 text-[10px] font-black text-[#FBBF24] ring-1.5 ring-[#F59E0B] shadow-sm"
+          style={{ left: `${afterX}%` }}
+        >
+          <span className="h-2 w-2 rounded-full bg-[#F59E0B] ring-2 ring-white/60 animate-pulse" />
+          <span>破10分: {radar.after10.targetSeatLabel}</span>
+          <span className="text-[9px] text-white/90">({radar.after10.offsetText})</span>
+        </div>
+
+        {/* 底部座位膠囊 */}
+        <div
+          className="absolute bottom-1 -translate-x-1/2 rounded-full bg-[#212047] px-3 py-0.5 text-[11px] font-black text-white ring-1 ring-[#5ECBC0] shadow-md"
+          style={{ left: `${seatX}%` }}
+        >
+          ▲ 你的座位：{radar.seatLabel}
+        </div>
+      </div>
+
+      {/* 底部圖例說明列 */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 bg-[#0E1526] px-3.5 py-1.5 text-[10px] text-white/60">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="flex items-center gap-1">
+            <span className="h-1.5 w-3 rounded-full bg-[#F59E0B]" />
+            <span>實線黃框：破 10 分決勝站位（主力時段）</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-1.5 w-3 rounded-full bg-[#5ECBC0] border border-dashed border-white/60" />
+            <span>虛線綠框：0–10 分開局站位</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-xs bg-[#5ECBC0]/30" />
+            <span>扇形光錐：觀眾面向球場真實好拍視角</span>
+          </span>
+        </div>
+        <span className="text-[9px] text-white/40">
+          依看台座標視角精準對應
+        </span>
+      </div>
+    </div>
+  );
+};
 
 interface PlanResultsSectionProps {
   planResult: FullMatchPlanResult;
@@ -471,37 +643,54 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                           </div>
                         </div>
 
-                        {/* 中：正前方女孩 */}
-                        <div className="sm:col-span-4">
+                        {/* 中：正前方女孩（雙時段完整呈現） */}
+                        <div className="sm:col-span-5 rounded-xl border border-[#212047]/10 bg-[#F4FAF8] p-2.5">
                           <span className="block text-[11px] font-bold text-[#212047]/60">
-                            本座正前方直視：
+                            本座正前方直視對象：
                           </span>
-                          <div className="mt-1 flex items-center gap-2">
-                            {step.frontGirlAfter10 ? (
-                              <>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            {step.frontGirlInit ? (
+                              <div className="flex items-center gap-1.5 rounded-lg bg-white px-2 py-1 shadow-2xs ring-1 ring-[#212047]/10">
                                 <img
-                                  src={`./images/avatars/${step.frontGirlAfter10.id}.jpg`}
+                                  src={`./images/avatars/${step.frontGirlInit.id}.jpg`}
                                   alt=""
-                                  className="h-7 w-7 rounded-full object-cover ring-1 ring-[#5BAE84]"
+                                  className="h-6 w-6 rounded-full object-cover ring-1 ring-[#5BAE84]"
                                   onError={(e) => {
                                     (e.target as HTMLElement).style.display = 'none';
                                   }}
                                 />
-                                <span className="text-sm font-bold text-[#212047]">
-                                  {step.frontGirlAfter10.name}
-                                </span>
-                                <span className="text-[11px] text-[#3F8E67]">
-                                  （決勝破 10 分時段）
-                                </span>
-                              </>
-                            ) : (
-                              <span className="text-xs text-[#212047]/50">無站位對應</span>
+                                <div>
+                                  <span className="block text-[10px] font-bold text-[#3F8E67]">0–10分 開局</span>
+                                  <span className="text-xs font-black text-[#212047]">{step.frontGirlInit.name}</span>
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {step.frontGirlAfter10 ? (
+                              <div className="flex items-center gap-1.5 rounded-lg bg-white px-2 py-1 shadow-2xs ring-1 ring-[#212047]/10">
+                                <img
+                                  src={`./images/avatars/${step.frontGirlAfter10.id}.jpg`}
+                                  alt=""
+                                  className="h-6 w-6 rounded-full object-cover ring-1 ring-[#E2B855]"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                                <div>
+                                  <span className="block text-[10px] font-bold text-[#B38318]">破10分 決勝</span>
+                                  <span className="text-xs font-black text-[#212047]">{step.frontGirlAfter10.name}</span>
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {!step.frontGirlInit && !step.frontGirlAfter10 && (
+                              <span className="text-xs text-[#212047]/50">無對應站位女孩</span>
                             )}
                           </div>
                         </div>
 
                         {/* 右：首推視角分析 */}
-                        <div className="sm:col-span-4 rounded-xl bg-[#F4FAF8] p-2.5 text-xs">
+                        <div className="sm:col-span-3 rounded-xl bg-[#F4FAF8] p-2.5 text-xs">
                           <span className="block font-bold text-[#212047]/70">
                             對 {selectedItinerary.targetGirl.name} 視角：
                           </span>
@@ -511,71 +700,13 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                         </div>
                       </div>
 
-                      {/* 方案 B：主要心儀女孩方位導航徽章（緊湊型雷達膠囊） */}
+                      {/* 觀眾面向球場看主推雷達圖 */}
                       {step.targetGirlRadar && (
-                        <div className="mt-3.5 rounded-xl border border-[#5ECBC0]/30 bg-[#F4FAF8] p-2.5 sm:p-3">
-                          <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-[#212047]/5">
-                            <div className="flex items-center gap-1.5">
-                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#212047] text-[10px] font-black text-[#5ECBC0]">
-                                ★
-                              </span>
-                              <span className="text-xs font-black text-[#212047]">
-                                目標【{step.targetGirlRadar.targetGirlName}】座位視角雷達
-                              </span>
-                            </div>
-                            <span className="text-[10px] font-bold text-[#212047]/60">
-                              以面向球場為基準（左側 C 區 ◀ · 右側 A 區 ▶）
-                            </span>
-                          </div>
-
-                          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                            {/* 開局 0-10 分時段 */}
-                            <div className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 shadow-2xs ring-1 ring-[#212047]/5">
-                              <span className="text-[11px] font-bold text-[#212047]/70">
-                                開局（0–10 分）：
-                              </span>
-                              <div className="flex items-center gap-1.5">
-                                <span className="rounded bg-[#212047]/5 px-1.5 py-0.5 text-[10px] font-bold text-[#212047]/80">
-                                  {step.targetGirlRadar.initial.zone} 區 {step.targetGirlRadar.initial.slotName}
-                                </span>
-                                <span
-                                  className={`rounded-full px-2 py-0.5 text-xs font-black ${
-                                    step.targetGirlRadar.initial.isDirectFront
-                                      ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-400'
-                                      : step.targetGirlRadar.initial.isSameZone
-                                        ? 'bg-[#5ECBC0]/20 text-[#212047] ring-1 ring-[#5ECBC0]'
-                                        : 'bg-amber-50 text-amber-900 ring-1 ring-amber-300'
-                                  }`}
-                                >
-                                  {step.targetGirlRadar.initial.offsetText}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* 破 10 分決勝時段 */}
-                            <div className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 shadow-2xs ring-1 ring-[#212047]/5">
-                              <span className="text-[11px] font-bold text-[#212047]/70">
-                                破 10 分換位後：
-                              </span>
-                              <div className="flex items-center gap-1.5">
-                                <span className="rounded bg-[#212047]/5 px-1.5 py-0.5 text-[10px] font-bold text-[#212047]/80">
-                                  {step.targetGirlRadar.after10.zone} 區 {step.targetGirlRadar.after10.slotName}
-                                </span>
-                                <span
-                                  className={`rounded-full px-2 py-0.5 text-xs font-black ${
-                                    step.targetGirlRadar.after10.isDirectFront
-                                      ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-400'
-                                      : step.targetGirlRadar.after10.isSameZone
-                                        ? 'bg-[#5ECBC0]/20 text-[#212047] ring-1 ring-[#5ECBC0]'
-                                        : 'bg-amber-50 text-amber-900 ring-1 ring-amber-300'
-                                  }`}
-                                >
-                                  {step.targetGirlRadar.after10.offsetText}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        <VisualSeatRadarCard
+                          radar={step.targetGirlRadar}
+                          frontGirlInit={step.frontGirlInit}
+                          frontGirlAfter10={step.frontGirlAfter10}
+                        />
                       )}
                     </div>
                   );
