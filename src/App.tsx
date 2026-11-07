@@ -126,51 +126,74 @@ export const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F4FAF8] text-[#212047]">
       {/* 頂部導航列 */}
-      <header className="sticky top-0 z-40 border-b border-[#212047]/10 bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <img
-              src="./favicon.svg"
-              alt="ACE VIVA 圖示"
-              className="h-9 w-9 rounded-xl object-contain ring-1 ring-[#5BAE84]/30"
-            />
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-editorial text-lg font-bold text-[#4FA87D] italic">
-                  Ace Viva
-                </span>
-                <span className="text-base font-black text-[#212047]">
-                  連莊女孩換位排班工具
+      <header className="sticky top-0 z-40 border-b border-[#212047]/10 bg-white/95 shadow-xs backdrop-blur-md">
+        <div className="mx-auto max-w-7xl px-3 py-2.5 sm:px-6 sm:py-3">
+          {/* 第一列：品牌與按鈕 */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <img
+                src="./favicon.svg"
+                alt="ACE VIVA 圖示"
+                className="h-8 w-8 shrink-0 rounded-xl object-contain ring-1 ring-[#5BAE84]/30 sm:h-9 sm:w-9"
+              />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                  <span className="font-editorial text-base font-bold text-[#4FA87D] italic sm:text-lg">
+                    Ace Viva
+                  </span>
+                  <span className="text-sm font-black text-[#212047] sm:text-base">
+                    連莊女孩換位排班工具
+                  </span>
+                </div>
+                <span className="hidden font-mono-num text-[11px] font-bold text-[#3F8E67] sm:inline-block">
+                  臺中連莊 2F ACE 集氣區換位計算系統（非官方粉絲自製）
                 </span>
               </div>
-              <span className="hidden font-mono-num text-[11px] font-bold text-[#3F8E67] sm:inline-block">
-                臺中連莊 2F ACE 集氣區換位計算系統（非官方粉絲自製）
-              </span>
+            </div>
+
+            {/* 桌機版場次與功能按鈕 */}
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="hidden sm:block">
+                <select
+                  value={selectedMatchId}
+                  onChange={(e) => setSelectedMatchId(e.target.value)}
+                  className="rounded-xl border border-[#212047]/20 bg-[#F4FAF8] px-3 py-1.5 text-xs font-black text-[#212047] focus:border-[#5ECBC0] focus:outline-none"
+                >
+                  {STATION_ROTATION_SCHEDULES.map((m) => (
+                    <option key={m.matchId} value={m.matchId}>
+                      {m.dateLabel} · vs {m.opponent}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 收納之啦啦隊介紹連結 */}
+              <button
+                type="button"
+                onClick={() => setIsAboutModalOpen(true)}
+                className="rounded-xl bg-[#F4FAF8] px-3 py-1.5 text-xs font-bold whitespace-nowrap text-[#212047] ring-1 ring-[#5BAE84]/30 transition-colors hover:bg-[#E6F5F1]"
+              >
+                啦啦隊介紹
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            {/* 場次下拉 */}
-            <select
-              value={selectedMatchId}
-              onChange={(e) => setSelectedMatchId(e.target.value)}
-              className="rounded-xl border border-[#212047]/20 bg-[#F4FAF8] px-3 py-1.5 text-xs font-black text-[#212047] focus:border-[#5ECBC0] focus:outline-none"
-            >
-              {STATION_ROTATION_SCHEDULES.map((m) => (
-                <option key={m.matchId} value={m.matchId}>
-                  {m.dateLabel} · vs {m.opponent}
-                </option>
-              ))}
-            </select>
-
-            {/* 收納之啦啦隊介紹連結 */}
-            <button
-              type="button"
-              onClick={() => setIsAboutModalOpen(true)}
-              className="rounded-xl bg-[#F4FAF8] px-3 py-1.5 text-xs font-bold text-[#212047] ring-1 ring-[#5BAE84]/30 hover:bg-[#E6F5F1]"
-            >
-              啦啦隊介紹
-            </button>
+          {/* 手機版第二列：場次選單全寬展示，防止擠壓頂部文字 */}
+          <div className="mt-2 block sm:hidden">
+            <div className="flex items-center gap-1.5 rounded-xl border border-[#212047]/15 bg-[#F4FAF8] px-2.5 py-1">
+              <span className="shrink-0 text-[11px] font-bold text-[#212047]/70">場次：</span>
+              <select
+                value={selectedMatchId}
+                onChange={(e) => setSelectedMatchId(e.target.value)}
+                className="w-full bg-transparent text-xs font-bold text-[#212047] focus:outline-none"
+              >
+                {STATION_ROTATION_SCHEDULES.map((m) => (
+                  <option key={m.matchId} value={m.matchId}>
+                    {m.dateLabel} · vs {m.opponent}（{m.themeName}）
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </header>

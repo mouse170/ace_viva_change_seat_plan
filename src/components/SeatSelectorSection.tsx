@@ -164,10 +164,15 @@ export const SeatSelectorSection: React.FC<SeatSelectorSectionProps> = ({
 
       {/* 2F 看台視覺化座位選擇器 */}
       <div className="mt-6 border-t border-[#212047]/10 pt-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs font-bold text-[#212047] sm:text-sm">
-            點選看台座位直接選取（觀眾面向球場排列）：
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div>
+            <span className="block text-xs font-bold text-[#212047] sm:text-sm">
+              點選看台座位直接選取：
+            </span>
+            <span className="text-[11px] text-[#212047]/60">
+              依觀眾面向球場排列（左側大號、右側小號）
+            </span>
+          </div>
 
           {/* 區域切換 Tabs */}
           <div className="inline-flex rounded-xl bg-[#F4FAF8] p-1 ring-1 ring-[#5BAE84]/30">
@@ -176,7 +181,7 @@ export const SeatSelectorSection: React.FC<SeatSelectorSectionProps> = ({
                 key={z.id}
                 type="button"
                 onClick={() => setActiveZoneTab(z.id)}
-                className={`rounded-lg px-3 py-1 text-xs font-bold transition-all ${
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
                   activeZoneTab === z.id
                     ? 'bg-[#212047] text-white shadow-xs'
                     : 'text-[#212047]/70 hover:text-[#212047]'
@@ -188,17 +193,74 @@ export const SeatSelectorSection: React.FC<SeatSelectorSectionProps> = ({
           </div>
         </div>
 
-        {/* 當前選定區域之 23 個座位格（觀眾面向球場視角：左手邊為 23 號、右手邊為 1 號） */}
-        <div className="mt-3 rounded-2xl bg-[#F4FAF8] p-4">
-          <div className="flex items-center justify-between text-xs text-[#212047]/70">
-            <span>◀ 觀眾左手邊（大號側）</span>
-            <span className="font-bold text-[#212047]">
-              {ZONES.find((z) => z.id === activeZoneTab)?.name} · 1–23 號席位
+        {/* 當前選定區域之 23 個座位格 */}
+        <div className="mt-3.5 rounded-2xl bg-[#F4FAF8] p-3 sm:p-4">
+          {/* 頂部區域名稱置中獨立一行，避免手機文字重疊 */}
+          <div className="text-center">
+            <span className="font-mono-num text-xs font-black text-[#212047] sm:text-sm">
+              {ZONES.find((z) => z.id === activeZoneTab)?.name}（共 23 席）
             </span>
-            <span>觀眾右手邊（小號側） ▶</span>
           </div>
 
-          <div className="mt-3 grid grid-cols-6 gap-1.5 sm:grid-cols-8 md:grid-cols-12 lg:grid-cols-23">
+          {/* 方位導航尺標 */}
+          <div className="mt-1.5 flex items-center justify-between text-[11px] font-bold text-[#212047]/60 sm:text-xs">
+            <span>◀ 觀眾左手邊（23 號大號側）</span>
+            <span>觀眾右手邊（1 號小號側） ▶</span>
+          </div>
+
+          {/* 手機版：依站位三區塊優雅分組排列（避免 6 欄網格斷行破版） */}
+          <div className="mt-3 space-y-3 block sm:hidden">
+            {[
+              {
+                title: '◀ 觀眾左側席位（16–23 號）',
+                seats: [23, 22, 21, 20, 19, 18, 17, 16],
+                cols: 'grid-cols-4',
+              },
+              {
+                title: '▲ 觀眾正中央席位（9–15 號）',
+                seats: [15, 14, 13, 12, 11, 10, 9],
+                cols: 'grid-cols-4',
+              },
+              {
+                title: '觀眾右側席位（1–8 號） ▶',
+                seats: [8, 7, 6, 5, 4, 3, 2, 1],
+                cols: 'grid-cols-4',
+              },
+            ].map((grp) => (
+              <div
+                key={grp.title}
+                className="rounded-xl border border-[#212047]/10 bg-white p-2.5 shadow-2xs"
+              >
+                <div className="mb-2 text-center text-[10px] font-black text-[#3F8E67]">
+                  {grp.title}
+                </div>
+                <div className={`grid ${grp.cols} gap-1.5`}>
+                  {grp.seats.map((seatNum) => {
+                    const key = `${activeZoneTab}-${seatNum}`;
+                    const isSelected = heldSeatKeys.has(key);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => toggleSeat(activeZoneTab, seatNum)}
+                        className={`flex flex-col items-center justify-center rounded-lg py-1.5 font-mono-num text-xs font-bold transition-all ${
+                          isSelected
+                            ? 'bg-[#3F8E67] text-white shadow-xs ring-2 ring-[#5ECBC0]'
+                            : 'bg-[#F4FAF8] text-[#212047] ring-1 ring-[#212047]/10 active:scale-95'
+                        }`}
+                      >
+                        <span className="text-[9px] opacity-75">{activeZoneTab}</span>
+                        <span className="text-xs font-black">{seatNum}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 平板與桌機版：全景連續 23 席排列 */}
+          <div className="mt-3 hidden sm:grid sm:grid-cols-12 lg:grid-cols-23 gap-1.5">
             {Array.from({ length: 23 }, (_, i) => 23 - i).map((seatNum) => {
               const key = `${activeZoneTab}-${seatNum}`;
               const isSelected = heldSeatKeys.has(key);
