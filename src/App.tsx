@@ -19,6 +19,7 @@ import { SeatSelectorSection } from './components/SeatSelectorSection';
 import { ParticipantsSection } from './components/ParticipantsSection';
 import { PlanResultsSection } from './components/PlanResultsSection';
 import { PlanCardModal } from './components/PlanCardModal';
+import { ConfigStringModal } from './components/ConfigStringModal';
 
 const HELD_SEATS_STORAGE_KEY = 'ace_viva_held_seats_v1';
 const PARTICIPANTS_STORAGE_KEY = 'ace_viva_plan_participants_v1';
@@ -78,6 +79,19 @@ export const App: React.FC = () => {
 
   // 5. 啦啦隊介紹收納彈窗
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
+
+  // 6. 存檔字串管理與編輯彈窗
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+
+  const handleApplyConfig = (newConfig: {
+    matchId: string;
+    heldSeats: HeldSeat[];
+    participants: Participant[];
+  }) => {
+    setSelectedMatchId(newConfig.matchId);
+    setHeldSeats(newConfig.heldSeats);
+    setParticipants(newConfig.participants);
+  };
 
   // 保存至 localStorage
   useEffect(() => {
@@ -264,6 +278,16 @@ export const App: React.FC = () => {
                 </select>
               </div>
 
+              {/* 存檔字串管理按鈕 */}
+              <button
+                type="button"
+                onClick={() => setIsConfigModalOpen(true)}
+                className="flex items-center gap-1 rounded-xl bg-[#212047] px-3 py-1.5 text-xs font-bold whitespace-nowrap text-white transition-colors hover:bg-[#2b2a5c]"
+                title="匯入、匯出或線上修改排班存檔字串"
+              >
+                <span>存檔字串</span>
+              </button>
+
               {/* 收納之啦啦隊介紹連結 */}
               <button
                 type="button"
@@ -276,8 +300,8 @@ export const App: React.FC = () => {
           </div>
 
           {/* 手機版第二列：場次選單全寬展示，防止擠壓頂部文字 */}
-          <div className="mt-2 block sm:hidden">
-            <div className="flex items-center gap-1.5 rounded-xl border border-[#212047]/15 bg-[#F4FAF8] px-2.5 py-1">
+          <div className="mt-2 flex items-center gap-2 block sm:hidden">
+            <div className="flex flex-1 items-center gap-1.5 rounded-xl border border-[#212047]/15 bg-[#F4FAF8] px-2.5 py-1">
               <span className="shrink-0 text-[11px] font-bold text-[#212047]/70">場次：</span>
               <select
                 value={selectedMatchId}
@@ -291,6 +315,13 @@ export const App: React.FC = () => {
                 ))}
               </select>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsConfigModalOpen(true)}
+              className="shrink-0 rounded-xl bg-[#212047] px-2.5 py-1 text-xs font-bold text-white shadow-2xs"
+            >
+              存檔字串
+            </button>
           </div>
         </div>
       </header>
@@ -313,14 +344,23 @@ export const App: React.FC = () => {
               </p>
             </div>
 
-            <div className="rounded-2xl bg-white/10 p-3 text-xs sm:p-4">
-              <span className="block text-white/60">目前選擇場次：</span>
-              <span className="text-sm font-bold text-[#E2B855]">
-                {currentMatch.dateLabel}
-              </span>
-              <span className="block text-white/80">
-                對手：{currentMatch.opponent}（{currentMatch.themeName}）
-              </span>
+            <div className="flex flex-col gap-2 rounded-2xl bg-white/10 p-3 text-xs sm:p-4">
+              <div>
+                <span className="block text-white/60">目前選擇場次：</span>
+                <span className="text-sm font-bold text-[#E2B855]">
+                  {currentMatch.dateLabel}
+                </span>
+                <span className="block text-white/80">
+                  對手：{currentMatch.opponent}（{currentMatch.themeName}）
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsConfigModalOpen(true)}
+                className="mt-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#5ECBC0] px-3 py-1.5 text-xs font-black text-[#212047] shadow-xs transition-colors hover:bg-[#7ADAD0]"
+              >
+                <span>存檔字串管理 / 匯入編輯</span>
+              </button>
             </div>
           </div>
         </div>
@@ -400,6 +440,16 @@ export const App: React.FC = () => {
         matchDateLabel={currentMatch.dateLabel}
         modalTitle={cardModalConfig.title}
         fileNamePrefix={cardModalConfig.fileNamePrefix}
+      />
+
+      {/* 存檔字串管理與在線編輯彈窗 */}
+      <ConfigStringModal
+        isOpen={isConfigModalOpen}
+        onClose={() => setIsConfigModalOpen(false)}
+        matchId={selectedMatchId}
+        heldSeats={heldSeats}
+        participants={participants}
+        onApplyConfig={handleApplyConfig}
       />
 
       {/* 啦啦隊介紹收納彈窗（點選開啟，不常駐頁面） */}

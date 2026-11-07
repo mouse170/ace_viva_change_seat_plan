@@ -745,3 +745,129 @@ export function formatIndividualPlanText(
 
   return lines.join('\n');
 }
+
+
+export interface PlanSavedConfig {
+  version: 1;
+  name?: string;
+  savedAt: string;
+  matchId: string;
+  heldSeats: string[]; // 例如 ["A20", "A23", "B8", "B14", "C2", "C4"]
+  participants: {
+    name: string;
+    role: ParticipantRole;
+    targetGirlIds: string[];
+    preferDirectFront?: boolean;
+    setExceptions?: SetSpecificPreference[];
+    priority: number;
+  }[];
+}
+
+/**
+ * 將當前配置序列化為可讀性高、方便修改的 JSON 存檔字串
+ */
+export function exportPlanConfigToString(
+  matchId: string,
+  heldSeats: HeldSeat[],
+  participants: Participant[],
+  configName: string = '自訂換位調配存檔'
+): string {
+  const config: PlanSavedConfig = {
+    version: 1,
+    name: configName,
+    savedAt: new Date().toLocaleString('zh-TW', { hour12: false }),
+    matchId,
+    heldSeats: heldSeats.map((s) => `${s.zone}${s.seat}`),
+    participants: participants.map((p, idx) => ({
+      name: p.name,
+      role: p.role,
+      targetGirlIds: p.targetGirlIds,
+      preferDirectFront: p.preferDirectFront,
+      setExceptions: p.setExceptions,
+      priority: p.priority || idx + 1,
+    })),
+  };
+
+  return JSON.stringify(config, null, 2);
+}
+
+/**
+ * 解析存檔字串並還原為狀態，具備嚴格容錯驗證
+ */
+export function parsePlanConfigFromString(jsonStr: string): {
+  success: boolean;
+  matchId?: string;
+  heldSeats?: HeldSeat[];
+  participants?: Participant[];
+  errorMessage?: string;
+} {
+  try {
+    const raw = JSON.parse(jsonStr.trim());
+    if (!raw || typeof raw !== 'object') {
+      return { success: false, errorMessage: '無效的 JSON 物件格式。' };
+    }
+
+    const matchId = typeof raw.matchId === 'string' ? raw.matchId : '2026-11-08';
+
+    // 1. 解析座位列表
+    let seatInputStr = '';
+    if (Array.isArray(raw.heldSeats)) {
+      seatInputStr = raw.heldSeats.join(', ');
+    } else if (typeof raw.heldSeats === 'string') {
+      seatInputStr = raw.heldSeats;
+    }
+    const heldSeats = parseSeatsInput(seatInputStr);
+
+    // 2. 解析參與者清單
+    const participants: Participant[] = [];
+    if (Array.isArray(raw.participants)) {
+      raw.participants.forEach((p: any, idx: number) => {
+        if (p && typeof p.name === 'string' && p.name.trim()) {
+          const role: ParticipantRole = p.role === 'flex' ? 'flex' : 'fan';
+          const targetGirlIds: string[] = Array.isArray(p.targetGirlIds)
+            ? p.targetGirlIds.filter((g: any) => typeof g === 'string')
+            : ['yuri'];
+
+          const setExceptions: SetSpecificPreference[] = [];
+          if (Array.isArray(p.setExceptions)) {
+            p.setExceptions.forEach((e: any) => {
+              if (e && typeof e.setKey === 'string') {
+                setExceptions.push({
+                  setKey: e.setKey,
+                  preferredZone: e.preferredZone,
+                  targetGirlId: e.targetGirlId,
+                });
+              }
+            });
+          }
+
+          participants.push({
+            id: `p-cfg-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 3)}`,
+            name: p.name.trim(),
+            role,
+            targetGirlIds: targetGirlIds.length > 0 ? targetGirlIds : ['yuri'],
+            preferDirectFront: Boolean(p.preferDirectFront),
+            setExceptions: setExceptions.length > 0 ? setExceptions : undefined,
+            priority: typeof p.priority === 'number' ? p.priority : idx + 1,
+          });
+        }
+      });
+    }
+
+    if (heldSeats.length === 0 && participants.length === 0) {
+      return { success: false, errorMessage: '存檔內容未包含任何有效座位或參與者名單。' };
+    }
+
+    return {
+      success: true,
+      matchId,
+      heldSeats,
+      participants,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      errorMessage: `JSON 解析失敗：${err?.message || '語法錯誤，請檢查引號或括號是否完整'}`,
+    };
+  }
+}
