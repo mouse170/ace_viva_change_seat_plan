@@ -16,7 +16,8 @@ export type ParticipantRole = 'fan' | 'flex'; // 'fan': 一般球迷, 'flex': �
 
 export interface SetSpecificPreference {
   setKey: 'set1_4' | 'set2_5' | 'set3';
-  preferredZone?: AceZoneId; // 指定特定區域（如 A 區）
+  preferredZone?: AceZoneId; // 指定單一區域（如 A 區）
+  preferredZones?: AceZoneId[]; // 指定複選區域（如 ['A', 'C'] 區）
   targetGirlId?: string;     // 指定特定女孩（如璇璇）
 }
 
@@ -397,15 +398,18 @@ function evaluateParticipantSeatSatisfaction(
 
   // 2. 檢查是否有針對此局的「例外規則」
   let effectiveGirlIds = targetGirlIds;
-  let preferredZone: AceZoneId | undefined = undefined;
+  let allowedZones: AceZoneId[] | undefined = undefined;
   let exceptionNote: string | undefined = undefined;
 
   if (participant.setExceptions && participant.setExceptions.length > 0) {
     const setExp = participant.setExceptions.find((e) => e.setKey === setStation.setKey);
     if (setExp) {
-      if (setExp.preferredZone) {
-        preferredZone = setExp.preferredZone;
-        exceptionNote = `本局指定 ${preferredZone} 區`;
+      if (Array.isArray(setExp.preferredZones) && setExp.preferredZones.length > 0) {
+        allowedZones = setExp.preferredZones;
+        exceptionNote = `本局指定 ${allowedZones.join(' 或 ')} 區`;
+      } else if (setExp.preferredZone) {
+        allowedZones = [setExp.preferredZone];
+        exceptionNote = `本局指定 ${setExp.preferredZone} 區`;
       }
       if (setExp.targetGirlId) {
         effectiveGirlIds = [setExp.targetGirlId];
@@ -446,9 +450,9 @@ function evaluateParticipantSeatSatisfaction(
       }
     }
 
-    // 若有指定區域偏好（preferredZone）
-    if (preferredZone) {
-      if (seat.zone === preferredZone) {
+    // 若有指定區域偏好（allowedZones）
+    if (allowedZones && allowedZones.length > 0) {
+      if (allowedZones.includes(seat.zone)) {
         score += 120; // 強烈鼓勵排進指定區域
       } else {
         score -= 150; // 強烈懲罰非指定區域

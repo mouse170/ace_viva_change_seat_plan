@@ -85,9 +85,17 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
 
     const setExceptions: SetSpecificPreference[] = [];
     if (showExceptionInput && (exceptionZone || exceptionGirlId)) {
+      const zones = exceptionZone.includes(',')
+        ? (exceptionZone.split(',') as AceZoneId[])
+        : undefined;
+      const singleZone = (!exceptionZone.includes(',') && exceptionZone)
+        ? (exceptionZone as AceZoneId)
+        : undefined;
+
       setExceptions.push({
         setKey: exceptionSetKey,
-        preferredZone: exceptionZone ? (exceptionZone as AceZoneId) : undefined,
+        preferredZone: singleZone,
+        preferredZones: zones,
         targetGirlId: exceptionGirlId ? exceptionGirlId : undefined,
       });
     }
@@ -435,6 +443,9 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
                         <option value="A">指定 A 區（右）</option>
                         <option value="B">指定 B 區（中）</option>
                         <option value="C">指定 C 區（左）</option>
+                        <option value="A,C">指定 A 區或 C 區（兩側皆可）</option>
+                        <option value="A,B">指定 A 區或 B 區</option>
+                        <option value="B,C">指定 B 區或 C 區</option>
                       </select>
                     </div>
 
@@ -626,7 +637,12 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
                           className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 font-bold text-amber-900 ring-1 ring-amber-200"
                         >
                           <span>
-                            {label} → {exp.preferredZone ? `${exp.preferredZone} 區` : ''}
+                            {label} →{' '}
+                            {exp.preferredZones && exp.preferredZones.length > 0
+                              ? `${exp.preferredZones.join(' 或 ')} 區`
+                              : exp.preferredZone
+                                ? `${exp.preferredZone} 區`
+                                : ''}
                             {girlName ? ` 看 ${girlName}` : ''}
                           </span>
                           <button

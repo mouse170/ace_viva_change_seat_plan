@@ -153,6 +153,65 @@ export const ConfigStringModal: React.FC<ConfigStringModalProps> = ({
     setErrorMessage(null);
   };
 
+  const handleLoadOfficialSundayPreset = () => {
+    const config = {
+      version: 1,
+      name: '11/08（日）最新 7 人實戰配置',
+      savedAt: new Date().toISOString(),
+      matchId: '2026-11-08',
+      heldSeats: [
+        { seatKey: 'A-20', zone: 'A', seatNumber: 20, row: 3, label: 'A 區 20 號' },
+        { seatKey: 'A-23', zone: 'A', seatNumber: 23, row: 3, label: 'A 區 23 號' },
+        { seatKey: 'B-8', zone: 'B', seatNumber: 8, row: 3, label: 'B 區 8 號' },
+        { seatKey: 'B-14', zone: 'B', seatNumber: 14, row: 3, label: 'B 區 14 號' },
+        { seatKey: 'B-20', zone: 'B', seatNumber: 20, row: 3, label: 'B 區 20 號' },
+        { seatKey: 'C-2', zone: 'C', seatNumber: 2, row: 3, label: 'C 區 2 號' },
+        { seatKey: 'C-4', zone: 'C', seatNumber: 4, row: 3, label: 'C 區 4 號' },
+      ],
+      participants: [
+        { id: 'p-pinjie', name: '品潔', role: 'fan', targetGirlIds: ['ann'], priority: 1 },
+        {
+          id: 'p-qiuchiu',
+          name: '秋秋',
+          role: 'fan',
+          targetGirlIds: ['xuanxuan'],
+          setExceptions: [{ setKey: 'set1_4', preferredZone: 'A', targetGirlId: 'xuanxuan' }],
+          priority: 2,
+        },
+        {
+          id: 'p-charles',
+          name: '查理斯',
+          role: 'fan',
+          targetGirlIds: ['ann', 'yuri'],
+          setExceptions: [
+            { setKey: 'set2_5', preferredZone: 'A' },
+            { setKey: 'set1_4', preferredZones: ['A', 'C'] },
+          ],
+          priority: 3,
+        },
+        { id: 'p-hanhan', name: '翰翰', role: 'fan', targetGirlIds: ['yixuan'], priority: 4 },
+        { id: 'p-yaoshou', name: '姚售', role: 'fan', targetGirlIds: ['jungheejung'], priority: 5 },
+        {
+          id: 'p-keith',
+          name: 'keith',
+          role: 'fan',
+          targetGirlIds: ['yixuan', 'ann', 'nicole'],
+          preferDirectFront: true,
+          priority: 6,
+        },
+        {
+          id: 'p-luopang',
+          name: '羅胖',
+          role: 'fan',
+          targetGirlIds: ['chayounghyun', 'jungheejung'],
+          priority: 7,
+        },
+      ],
+    };
+    setEditorText(JSON.stringify(config, null, 2));
+    setErrorMessage(null);
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
@@ -188,7 +247,15 @@ export const ConfigStringModal: React.FC<ConfigStringModalProps> = ({
               可直接在下方文字框編輯座位（`heldSeats`）或朋友名單（`participants`），點擊「套用設定」立即生效；亦可一鍵複製文字備份於筆記或
               LINE 記事本。
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleLoadOfficialSundayPreset}
+                className="rounded-lg bg-[#5ECBC0]/20 px-3 py-1.5 font-bold text-[#212047] ring-1 ring-[#5ECBC0] hover:bg-[#5ECBC0]/30"
+                title="載入 11/08 最新 7 人配置（含姚售、查理斯 A/C 區、羅胖）"
+              >
+                ★ 載入 11/08 週日實戰範本
+              </button>
               <button
                 type="button"
                 onClick={handleResetToCurrent}
