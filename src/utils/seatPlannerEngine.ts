@@ -26,7 +26,7 @@ export interface Participant {
   name: string;
   role: ParticipantRole;
   targetGirlIds: string[];   // 心儀女孩清單（支援複選 1~3 位）
-  preferDirectFront?: boolean; // 是否強調「正前方直視優先」
+  preferDirectFront?: boolean; // 棄用相容欄位
   setExceptions?: SetSpecificPreference[]; // 局數特殊例外要求
   priority: number; // 數字越小優先度越高（1 開始）
 }
@@ -340,7 +340,7 @@ function evaluateSingleGirlSeat(
  * 1. 彈性功能角（不挑位置，最後補位）
  * 2. 局數例外偏好（指定區域 preferredZone 或指定女孩 targetGirlId）
  * 3. 複選女孩偏好（可看多位心儀女孩，挑分數最高者）
- * 4. 偏好正前方直視（preferDirectFront，大幅加成直視席）
+ * 4. 全域最佳公約數公平性模型（Max-Min Fairness）與志願序階梯衰減
  */
 function evaluateParticipantSeatSatisfaction(
   seat: HeldSeat,
@@ -421,10 +421,10 @@ function evaluateParticipantSeatSatisfaction(
 
   // 3. 遍歷可能的心儀女孩，依照「喜好順序（志願序加權）」計算最高滿意度
   // 第 1 志願（首推）：加權係數 1.0（基準滿額）
-  // 第 2 志願（二推）：加權係數 0.78，階梯遞減 20 分
-  // 第 3 志願（三推）：加權係數 0.58，階梯遞減 38 分
-  const PREF_ORDER_WEIGHTS = [1.0, 0.78, 0.58];
-  const PREF_ORDER_PENALTIES = [0, 20, 38];
+  // 第 2 志願（二推）：加權係數 0.82，階梯微降 15 分
+  // 第 3 志願（三推）：加權係數 0.65，階梯微降 30 分
+  const PREF_ORDER_WEIGHTS = [1.0, 0.82, 0.65];
+  const PREF_ORDER_PENALTIES = [0, 15, 30];
 
   let bestScore = -999;
   let bestGirlId = effectiveGirlIds[0];
@@ -433,22 +433,11 @@ function evaluateParticipantSeatSatisfaction(
 
   effectiveGirlIds.forEach((gId, prefIdx) => {
     const singleEval = evaluateSingleGirlSeat(seat, gId, setStation);
-    const weight = PREF_ORDER_WEIGHTS[prefIdx] ?? 0.45;
-    const penalty = PREF_ORDER_PENALTIES[prefIdx] ?? 45;
+    const weight = PREF_ORDER_WEIGHTS[prefIdx] ?? 0.5;
+    const penalty = PREF_ORDER_PENALTIES[prefIdx] ?? 35;
 
-    // 依喜好順序加權：優先保證首推，二推/三推僅在首推距離過遠時作為備選候補
+    // 取消個人直視偏好特權，依客觀視野距離與志願序階梯計算純粹客觀滿意度
     let score = singleEval.score * weight - penalty;
-
-    // 若勾選「偏好正前方直視（preferDirectFront）」：依志願序給予直視加成獎勵
-    if (participant.preferDirectFront) {
-      if (singleEval.isDirectFrontAfter) {
-        score += prefIdx === 0 ? 85 : 55;
-      } else if (singleEval.isDirectFrontInit) {
-        score += prefIdx === 0 ? 45 : 30;
-      } else {
-        score -= prefIdx === 0 ? 25 : 10;
-      }
-    }
 
     // 若有指定區域偏好（allowedZones）
     if (allowedZones && allowedZones.length > 0) {
@@ -518,7 +507,7 @@ function evaluateParticipantSeatSatisfaction(
 }
 
 /**
- * 依據匈牙利最佳化配對演算為單一局計算最優分配
+ * 依據匈牙利最佳化配對與最大公約數公平性模型（Max-Min Fairness）計算單一局最優分配
  */
 export function solveSetPlan(
   setStation: {
@@ -530,7 +519,8 @@ export function solveSetPlan(
   },
   heldSeats: HeldSeat[],
   participants: Participant[],
-  prevSetAssignments?: Map<string, HeldSeat>
+  prevSetAssignments?: Map<string, HeldSeat>,
+  historicalScores?: Map<string, number>
 ): SetPlanResult {
   const memberMap = new Map(MEMBERS.map((m) => [m.id, m]));
   const safeHeldSeats = Array.isArray(heldSeats) ? heldSeats : [];
@@ -570,6 +560,18 @@ export function solveSetPlan(
     };
   }
 
+  // 計算目前歷史平均累積得分，以作為跨局均勻輪替公約數之補償基準
+  let avgHistoricalScore = 0;
+  if (historicalScores && historicalScores.size > 0) {
+    let sum = 0;
+    let count = 0;
+    historicalScores.forEach((val) => {
+      sum += val;
+      count++;
+    });
+    avgHistoricalScore = count > 0 ? sum / count : 0;
+  }
+
   interface SeatCandidate {
     seatIndex: number;
     score: number;
@@ -582,11 +584,21 @@ export function solveSetPlan(
     // 依優先度給予加權（功能角優先權最低）
     const rolePriorityBase = p.role === 'flex' ? -200 : (participants.length - p.priority + 1) * 3;
 
+    // 跨局公平性動態補償：若前幾局累積得分低於全隊平均，本局給予主動提昇補償
+    let historicalBonus = 0;
+    if (historicalScores && historicalScores.has(p.id) && p.role !== 'flex') {
+      const pHist = historicalScores.get(p.id) || 0;
+      const deficit = avgHistoricalScore - pHist;
+      if (deficit > 0) {
+        historicalBonus = Math.min(30, deficit * 0.35);
+      }
+    }
+
     const candidates: SeatCandidate[] = heldSeats.map((seat, seatIndex) => {
       const evaluation = evaluateParticipantSeatSatisfaction(seat, p, setStation);
       return {
         seatIndex,
-        score: evaluation.satisfactionScore + rolePriorityBase,
+        score: evaluation.satisfactionScore + rolePriorityBase + historicalBonus,
         rawEval: evaluation,
       };
     });
@@ -618,10 +630,17 @@ export function solveSetPlan(
     }
   }
 
-  // 局部最佳化交換（2-opt 改善全域滿意度）
+  // 輔助函式：公平性效用轉換（非線性懲罰不及格的偏遠視野）
+  const getEquityUtility = (score: number) => {
+    if (score < 45) return score - (45 - score) * 3.0;
+    if (score < 60) return score - (60 - score) * 1.5;
+    return score;
+  };
+
+  // 局部最佳化交換（Max-Min 最佳公約數 2-opt 演算法）
   let improved = true;
   let iterations = 0;
-  while (improved && iterations < 35) {
+  while (improved && iterations < 40) {
     improved = false;
     iterations++;
 
@@ -635,13 +654,23 @@ export function solveSetPlan(
         if (s1 !== undefined && s2 !== undefined) {
           const cand1Current = p1.candidates.find((c) => c.seatIndex === s1)?.score ?? 0;
           const cand2Current = p2.candidates.find((c) => c.seatIndex === s2)?.score ?? 0;
-          const currentSum = cand1Current + cand2Current;
 
           const cand1Swap = p1.candidates.find((c) => c.seatIndex === s2)?.score ?? 0;
           const cand2Swap = p2.candidates.find((c) => c.seatIndex === s1)?.score ?? 0;
-          const swapSum = cand1Swap + cand2Swap;
 
-          if (swapSum > currentSum + 4) {
+          const currentMin = Math.min(cand1Current, cand2Current);
+          const swapMin = Math.min(cand1Swap, cand2Swap);
+
+          const currentUtilitySum = getEquityUtility(cand1Current) + getEquityUtility(cand2Current);
+          const swapUtilitySum = getEquityUtility(cand1Swap) + getEquityUtility(cand2Swap);
+
+          // 最大公約數交換裁決準則：
+          // 1. 若交換能顯著改善隊友中最低滿意度（最低分提昇 7 分以上），優先同意交換
+          // 2. 若調和後效用總分顯著提昇，且不讓最低滿意者嚴重受害（最低分降幅不超過 4 分）
+          const isMinScoreElevated = swapMin >= currentMin + 7;
+          const isUtilityIncreased = swapUtilitySum > currentUtilitySum + 3 && swapMin >= currentMin - 4;
+
+          if (isMinScoreElevated || isUtilityIncreased) {
             assignedPToSeat.set(p1.pIndex, s2);
             assignedPToSeat.set(p2.pIndex, s1);
             assignedSeatToP.set(s2, p1.pIndex);
@@ -736,7 +765,7 @@ export function solveSetPlan(
 }
 
 /**
- * 執行全場比賽換位排程運算
+ * 執行全場比賽換位排程運算，納入跨局最大公約數累計平衡機制
  */
 export function solveFullMatchPlan(
   match: MatchStationSchedule,
@@ -750,15 +779,24 @@ export function solveFullMatchPlan(
 
   const setsResults: SetPlanResult[] = [];
   let prevAssignmentsMap: Map<string, HeldSeat> | undefined = undefined;
+  const cumulativeScoresMap = new Map<string, number>();
 
   for (const setStation of match.sets) {
-    const setResult = solveSetPlan(setStation, safeHeldSeats, safeParticipants, prevAssignmentsMap);
+    const setResult = solveSetPlan(
+      setStation,
+      safeHeldSeats,
+      safeParticipants,
+      prevAssignmentsMap,
+      cumulativeScoresMap
+    );
     setsResults.push(setResult);
 
     prevAssignmentsMap = new Map<string, HeldSeat>();
     for (const a of setResult.assignments) {
       if (a.assignedSeat) {
         prevAssignmentsMap.set(a.participantId, a.assignedSeat);
+        const curScore = cumulativeScoresMap.get(a.participantId) || 0;
+        cumulativeScoresMap.set(a.participantId, curScore + a.score);
       }
     }
   }
@@ -981,7 +1019,6 @@ export function exportPlanConfigToString(
       name: p.name,
       role: p.role,
       targetGirlIds: p.targetGirlIds,
-      preferDirectFront: p.preferDirectFront,
       setExceptions: p.setExceptions,
       priority: p.priority || idx + 1,
     })),

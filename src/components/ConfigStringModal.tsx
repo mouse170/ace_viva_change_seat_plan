@@ -196,7 +196,6 @@ export const ConfigStringModal: React.FC<ConfigStringModalProps> = ({
           name: 'keith',
           role: 'fan',
           targetGirlIds: ['yixuan', 'ann', 'nicole'],
-          preferDirectFront: true,
           priority: 6,
         },
         {

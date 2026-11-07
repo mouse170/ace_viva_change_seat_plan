@@ -54,7 +54,6 @@ const DEFAULT_PARTICIPANTS: Participant[] = [
     name: 'keith',
     role: 'fan',
     targetGirlIds: ['yixuan', 'ann', 'nicole'],
-    preferDirectFront: true,
     priority: 6,
   },
   {
@@ -274,7 +273,6 @@ export const MainApp: React.FC = () => {
         name: 'keith',
         role: 'fan',
         targetGirlIds: ['yixuan', 'ann', 'nicole'],
-        preferDirectFront: true, // 一暄、Ann、Nicole 任一位在正前方最好
         priority: 6,
       },
       {

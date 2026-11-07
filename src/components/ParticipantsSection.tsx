@@ -37,7 +37,6 @@ const EditParticipantModal: React.FC<EditParticipantModalProps> = ({
       ? participant.targetGirlIds
       : ['yuri']
   );
-  const [preferDirectFront, setPreferDirectFront] = useState(Boolean(participant.preferDirectFront));
   const [exceptions, setExceptions] = useState<SetSpecificPreference[]>(
     participant.setExceptions ? [...participant.setExceptions] : []
   );
@@ -108,7 +107,6 @@ const EditParticipantModal: React.FC<EditParticipantModalProps> = ({
       name: name.trim(),
       role,
       targetGirlIds: role === 'flex' ? ['yuri'] : targetGirlIds,
-      preferDirectFront: role === 'flex' ? false : preferDirectFront,
       setExceptions: exceptions.length > 0 ? exceptions : undefined,
     });
     onClose();
@@ -190,15 +188,9 @@ const EditParticipantModal: React.FC<EditParticipantModalProps> = ({
                 <span className="text-xs font-black text-[#212047]">
                   心儀女孩（可複選 1～3 位）：
                 </span>
-                <label className="flex cursor-pointer items-center gap-1.5 text-xs font-bold text-[#3F8E67]">
-                  <input
-                    type="checkbox"
-                    checked={preferDirectFront}
-                    onChange={(e) => setPreferDirectFront(e.target.checked)}
-                    className="rounded text-[#5BAE84] focus:ring-[#5ECBC0]"
-                  />
-                  <span>★ 優先正前方直視席（加重直視權重）</span>
-                </label>
+                <span className="text-[11px] font-bold text-[#3F8E67]">
+                  依志願序加權評估全場視野最大公約數
+                </span>
               </div>
 
               {/* 可選女孩膠囊清單 */}
@@ -449,7 +441,6 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
   const [selectedGirlIds, setSelectedGirlIds] = useState<string[]>([
     attendingMemberIds[0] || 'yuri',
   ]);
-  const [preferDirectFront, setPreferDirectFront] = useState(false);
 
   // 局數特殊例外輸入狀態
   const [showExceptionInput, setShowExceptionInput] = useState(false);
@@ -529,7 +520,6 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
       name: nameInput.trim(),
       role: roleInput,
       targetGirlIds: roleInput === 'flex' ? ['yuri'] : selectedGirlIds,
-      preferDirectFront: roleInput === 'flex' ? false : preferDirectFront,
       setExceptions: setExceptions.length > 0 ? setExceptions : undefined,
       priority: participants.length + 1,
     };
@@ -538,7 +528,6 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
     setNameInput('');
     setRoleInput('fan');
     setSelectedGirlIds([attendingMemberIds[0] || 'yuri']);
-    setPreferDirectFront(false);
     setShowExceptionInput(false);
     setExceptionZone('');
     setExceptionGirlId('');
@@ -575,14 +564,6 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
       if (p.id !== pId) return p;
       const nextRole: ParticipantRole = p.role === 'fan' ? 'flex' : 'fan';
       return { ...p, role: nextRole };
-    });
-    onParticipantsChange(updated);
-  };
-
-  const handleToggleParticipantDirectFront = (pId: string) => {
-    const updated = participants.map((p) => {
-      if (p.id !== pId) return p;
-      return { ...p, preferDirectFront: !p.preferDirectFront };
     });
     onParticipantsChange(updated);
   };
@@ -701,15 +682,9 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
               <span className="text-xs font-bold text-[#212047]">
                 心儀女孩（可複選 1～3 位）：
               </span>
-              <label className="flex cursor-pointer items-center gap-1.5 text-xs font-bold text-[#3F8E67]">
-                <input
-                  type="checkbox"
-                  checked={preferDirectFront}
-                  onChange={(e) => setPreferDirectFront(e.target.checked)}
-                  className="rounded text-[#5BAE84] focus:ring-[#5ECBC0]"
-                />
-                <span>★ 優先正前方直視席（加重直視權重）</span>
-              </label>
+              <span className="text-[11px] font-bold text-[#3F8E67]">
+                依志願序加權評估全場視野最大公約數
+              </span>
             </div>
 
             {/* 女孩多選膠囊清單 */}
@@ -947,11 +922,6 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
                             一般球迷
                           </span>
                         )}
-                        {p.preferDirectFront && !isFlex && (
-                          <span className="rounded-md bg-amber-100 px-1.5 py-0.2 text-[10px] font-bold text-amber-800">
-                            ★ 偏好直視
-                          </span>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -974,20 +944,6 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
                     >
                       切換為{isFlex ? '球迷' : '功能角'}
                     </button>
-                    {!isFlex && (
-                      <button
-                        type="button"
-                        onClick={() => handleToggleParticipantDirectFront(p.id)}
-                        className={`rounded-lg px-2 py-1 text-[11px] font-bold ring-1 ${
-                          p.preferDirectFront
-                            ? 'bg-amber-100 text-amber-900 ring-amber-300'
-                            : 'bg-[#F4FAF8] text-[#212047] ring-[#212047]/10'
-                        }`}
-                        title="切換正前方直視偏好"
-                      >
-                        {p.preferDirectFront ? '直視中' : '一般視角'}
-                      </button>
-                    )}
                     <button
                       type="button"
                       disabled={index === 0}
