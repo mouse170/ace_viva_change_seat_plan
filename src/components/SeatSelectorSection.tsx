@@ -71,7 +71,7 @@ export const SeatSelectorSection: React.FC<SeatSelectorSectionProps> = ({
   };
 
   const handleLoadSampleSeats = () => {
-    const sample = parseSeatsInput('A5, A12, B6, B12, C10, C19');
+    const sample = parseSeatsInput('A20, A23, B8, B14, B20, C2, C4');
     onSeatsChange(sample);
   };
 
@@ -96,9 +96,9 @@ export const SeatSelectorSection: React.FC<SeatSelectorSectionProps> = ({
           <button
             type="button"
             onClick={handleLoadSampleSeats}
-            className="rounded-full bg-[#F4FAF8] px-3 py-1.5 text-xs font-bold text-[#212047] ring-1 ring-[#5BAE84]/30 hover:bg-[#E6F5F1]"
+            className="rounded-full bg-[#5ECBC0]/20 px-3 py-1.5 text-xs font-black text-[#212047] ring-1 ring-[#5ECBC0] hover:bg-[#5ECBC0]/30"
           >
-            載入範例座位
+            ★ 載入 11/08 週日 7 席實戰座位
           </button>
           {heldSeats.length > 0 && (
             <button

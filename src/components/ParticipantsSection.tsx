@@ -14,6 +14,430 @@ interface ParticipantsSectionProps {
   onLoadSundayCase: () => void;
 }
 
+interface EditParticipantModalProps {
+  participant: Participant;
+  attendingMemberIds: string[];
+  onClose: () => void;
+  onSave: (updated: Participant) => void;
+}
+
+const EditParticipantModal: React.FC<EditParticipantModalProps> = ({
+  participant,
+  attendingMemberIds,
+  onClose,
+  onSave,
+}) => {
+  const memberMap = new Map(MEMBERS.map((m) => [m.id, m]));
+  const attendingMembers = MEMBERS.filter((m) => attendingMemberIds.includes(m.id));
+
+  const [name, setName] = useState(participant.name);
+  const [role, setRole] = useState<ParticipantRole>(participant.role);
+  const [targetGirlIds, setTargetGirlIds] = useState<string[]>(
+    participant.targetGirlIds && participant.targetGirlIds.length > 0
+      ? participant.targetGirlIds
+      : ['yuri']
+  );
+  const [preferDirectFront, setPreferDirectFront] = useState(Boolean(participant.preferDirectFront));
+  const [exceptions, setExceptions] = useState<SetSpecificPreference[]>(
+    participant.setExceptions ? [...participant.setExceptions] : []
+  );
+
+  // 新增例外表單 state
+  const [newSetKey, setNewSetKey] = useState<'set1_4' | 'set2_5' | 'set3'>('set1_4');
+  const [newZone, setNewZone] = useState('');
+  const [newGirlId, setNewGirlId] = useState('');
+
+  const toggleSelectGirl = (girlId: string) => {
+    if (targetGirlIds.includes(girlId)) {
+      if (targetGirlIds.length > 1) {
+        setTargetGirlIds(targetGirlIds.filter((id) => id !== girlId));
+      } else {
+        alert('至少需保留 1 位心儀女孩。');
+      }
+    } else {
+      if (targetGirlIds.length < 3) {
+        setTargetGirlIds([...targetGirlIds, girlId]);
+      } else {
+        alert('最多可複選 3 位心儀女孩。');
+      }
+    }
+  };
+
+  const moveGirlPreference = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= targetGirlIds.length) return;
+    const nextList = [...targetGirlIds];
+    const temp = nextList[index];
+    nextList[index] = nextList[targetIndex];
+    nextList[targetIndex] = temp;
+    setTargetGirlIds(nextList);
+  };
+
+  const handleAddException = () => {
+    if (!newZone && !newGirlId) {
+      alert('請至少選擇指定區域或指定女孩。');
+      return;
+    }
+
+    const zones = newZone.includes(',') ? (newZone.split(',') as AceZoneId[]) : undefined;
+    const singleZone = !newZone.includes(',') && newZone ? (newZone as AceZoneId) : undefined;
+
+    const filtered = exceptions.filter((e) => e.setKey !== newSetKey);
+    filtered.push({
+      setKey: newSetKey,
+      preferredZone: singleZone,
+      preferredZones: zones,
+      targetGirlId: newGirlId || undefined,
+    });
+    setExceptions(filtered);
+    setNewZone('');
+    setNewGirlId('');
+  };
+
+  const handleRemoveException = (setKey: string) => {
+    setExceptions(exceptions.filter((e) => e.setKey !== setKey));
+  };
+
+  const handleSave = () => {
+    if (!name.trim()) {
+      alert('姓名不能為空。');
+      return;
+    }
+    onSave({
+      ...participant,
+      name: name.trim(),
+      role,
+      targetGirlIds: role === 'flex' ? ['yuri'] : targetGirlIds,
+      preferDirectFront: role === 'flex' ? false : preferDirectFront,
+      setExceptions: exceptions.length > 0 ? exceptions : undefined,
+    });
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
+      style={{
+        backgroundColor: 'rgba(24, 23, 54, 0.75)',
+        backdropFilter: 'blur(6px)',
+      }}
+    >
+      <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col rounded-3xl bg-white shadow-2xl ring-1 ring-[#212047]/20">
+        {/* 頂部標題 */}
+        <div className="flex items-center justify-between border-b border-[#212047]/10 px-5 py-4 sm:px-6">
+          <div>
+            <span className="text-[10px] font-black tracking-wider text-[#3F8E67]">
+              EDIT PREFERENCES & EXCEPTIONS
+            </span>
+            <h3 className="text-lg font-black text-[#212047] sm:text-xl">
+              調整【{participant.name}】的換位偏好與特殊條件
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-[#F4FAF8] p-2 text-sm text-[#212047]/60 hover:bg-[#E6F5F1] hover:text-[#212047]"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* 編輯內容主體 */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+          {/* 姓名與身分 */}
+          <div>
+            <label className="block text-xs font-bold text-[#212047]">朋友姓名 / 暱稱：</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-[#212047]/20 bg-[#F4FAF8] px-3.5 py-2 text-sm font-bold text-[#212047] focus:border-[#5ECBC0] focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[#212047]">角色類型：</label>
+            <div className="mt-1.5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setRole('fan')}
+                className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all ${
+                  role === 'fan'
+                    ? 'bg-[#212047] text-white shadow-2xs'
+                    : 'bg-[#F4FAF8] text-[#212047]/70 hover:bg-[#E6F5F1]'
+                }`}
+              >
+                一般球迷（指定女孩）
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole('flex')}
+                className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all ${
+                  role === 'flex'
+                    ? 'bg-[#212047] text-white shadow-2xs'
+                    : 'bg-[#F4FAF8] text-[#212047]/70 hover:bg-[#E6F5F1]'
+                }`}
+              >
+                彈性配合功能角（自由人）
+              </button>
+            </div>
+          </div>
+
+          {/* 心儀女孩志願順序（非功能角） */}
+          {role === 'fan' && (
+            <div className="rounded-2xl border border-[#212047]/10 bg-[#F4FAF8] p-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#212047]/5">
+                <span className="text-xs font-black text-[#212047]">
+                  心儀女孩（可複選 1～3 位）：
+                </span>
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs font-bold text-[#3F8E67]">
+                  <input
+                    type="checkbox"
+                    checked={preferDirectFront}
+                    onChange={(e) => setPreferDirectFront(e.target.checked)}
+                    className="rounded text-[#5BAE84] focus:ring-[#5ECBC0]"
+                  />
+                  <span>★ 優先正前方直視席（加重直視權重）</span>
+                </label>
+              </div>
+
+              {/* 可選女孩膠囊清單 */}
+              <div className="mt-2.5 flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
+                {attendingMembers.map((m) => {
+                  const orderIdx = targetGirlIds.indexOf(m.id);
+                  const isSelected = orderIdx !== -1;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => toggleSelectGirl(m.id)}
+                      className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-bold transition-all ${
+                        isSelected
+                          ? 'bg-[#212047] text-white shadow-xs ring-1 ring-[#5ECBC0]'
+                          : 'bg-white text-[#212047] ring-1 ring-[#212047]/15 hover:bg-[#E6F5F1]'
+                      }`}
+                    >
+                      <img
+                        src={`./images/avatars/${m.id}.jpg`}
+                        alt=""
+                        className="h-4 w-4 rounded-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                      <span>#{m.number} {m.name}</span>
+                      {isSelected && (
+                        <span className="rounded bg-[#5ECBC0] px-1.5 py-0.2 text-[10px] font-black text-[#212047]">
+                          {orderIdx === 0 ? '1推' : `${orderIdx + 1}推`}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 喜好順位調整條 */}
+              <div className="mt-2.5 space-y-1.5">
+                <span className="block text-[11px] font-bold text-[#212047]/70">
+                  目前志願順位（第 1 位享有最高優先加權）：
+                </span>
+                {targetGirlIds.map((gId, gIdx) => {
+                  const girl = memberMap.get(gId);
+                  if (!girl) return null;
+                  const isFirst = gIdx === 0;
+                  const isLast = gIdx === targetGirlIds.length - 1;
+                  return (
+                    <div
+                      key={gId}
+                      className="flex items-center justify-between rounded-xl bg-white px-3 py-1.5 text-xs shadow-2xs ring-1 ring-[#212047]/5"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`rounded-md px-1.5 py-0.5 text-[10px] font-black ${
+                            isFirst
+                              ? 'bg-[#5ECBC0] text-[#212047]'
+                              : 'bg-[#212047]/10 text-[#212047]/80'
+                          }`}
+                        >
+                          {isFirst ? '★ 1推（首選）' : `${gIdx + 1}推（次選）`}
+                        </span>
+                        <span className="font-bold text-[#212047]">
+                          #{girl.number} {girl.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {targetGirlIds.length > 1 && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={isFirst}
+                              onClick={() => moveGirlPreference(gIdx, 'up')}
+                              className="h-6 w-6 rounded bg-[#212047]/5 text-[10px] font-bold text-[#212047] disabled:opacity-30 hover:bg-[#212047]/10"
+                            >
+                              ▲
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isLast}
+                              onClick={() => moveGirlPreference(gIdx, 'down')}
+                              className="h-6 w-6 rounded bg-[#212047]/5 text-[10px] font-bold text-[#212047] disabled:opacity-30 hover:bg-[#212047]/10"
+                            >
+                              ▼
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (targetGirlIds.length > 1) {
+                              setTargetGirlIds(targetGirlIds.filter((id) => id !== gId));
+                            } else {
+                              alert('至少需保留 1 位心儀女孩。');
+                            }
+                          }}
+                          className="ml-1 text-xs font-bold text-red-500 hover:text-red-700"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 局數特殊例外管理 */}
+          <div className="rounded-2xl border border-[#212047]/10 bg-white p-3.5">
+            <span className="block text-xs font-black text-[#212047]">
+              局數特殊指定條件清單（如：特定局數想去某區或看特定女孩）：
+            </span>
+
+            {/* 現有例外清單 */}
+            <div className="mt-2 space-y-1.5">
+              {exceptions.length === 0 ? (
+                <p className="text-xs text-[#212047]/50 italic">尚未設定任何單局特殊條件。</p>
+              ) : (
+                exceptions.map((exp) => {
+                  const setLabel =
+                    exp.setKey === 'set1_4'
+                      ? '第 1、4 局'
+                      : exp.setKey === 'set2_5'
+                        ? '第 2、5 局'
+                        : '第 3 局';
+                  const zoneLabel = exp.preferredZones && exp.preferredZones.length > 0
+                    ? `${exp.preferredZones.join(' 或 ')} 區`
+                    : exp.preferredZone
+                      ? `${exp.preferredZone} 區`
+                      : '';
+                  const girlName = exp.targetGirlId ? memberMap.get(exp.targetGirlId)?.name : '';
+
+                  return (
+                    <div
+                      key={exp.setKey}
+                      className="flex items-center justify-between rounded-xl bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-950 ring-1 ring-amber-200"
+                    >
+                      <span>
+                        {setLabel} → {zoneLabel ? `指定 ${zoneLabel}` : ''}
+                        {girlName ? ` 看 ${girlName}` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveException(exp.setKey)}
+                        className="text-xs font-black text-amber-700 hover:text-red-600"
+                        title="刪除此條件"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* ＋新增單局例外區塊 */}
+            <div className="mt-3 rounded-xl bg-[#F4FAF8] p-3 ring-1 ring-[#212047]/10">
+              <span className="block text-[11px] font-bold text-[#212047]/70">
+                ＋新增或覆蓋單局特殊指定條件：
+              </span>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div>
+                  <span className="block text-[10px] font-bold text-[#212047]/60">指定局數：</span>
+                  <select
+                    value={newSetKey}
+                    onChange={(e) => setNewSetKey(e.target.value as any)}
+                    className="mt-1 w-full rounded-lg border border-[#212047]/20 bg-white p-1.5 text-xs font-bold text-[#212047]"
+                  >
+                    <option value="set1_4">第 1、4 局</option>
+                    <option value="set2_5">第 2、5 局</option>
+                    <option value="set3">第 3 局</option>
+                  </select>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-bold text-[#212047]/60">指定看台區域：</span>
+                  <select
+                    value={newZone}
+                    onChange={(e) => setNewZone(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-[#212047]/20 bg-white p-1.5 text-xs font-bold text-[#212047]"
+                  >
+                    <option value="">不指定區域</option>
+                    <option value="A">指定 A 區（右）</option>
+                    <option value="B">指定 B 區（中）</option>
+                    <option value="C">指定 C 區（左）</option>
+                    <option value="A,C">指定 A 區或 C 區（兩側皆可）</option>
+                    <option value="A,B">指定 A 區或 B 區</option>
+                    <option value="B,C">指定 B 區或 C 區</option>
+                  </select>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-bold text-[#212047]/60">指定女孩：</span>
+                  <select
+                    value={newGirlId}
+                    onChange={(e) => setNewGirlId(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-[#212047]/20 bg-white p-1.5 text-xs font-bold text-[#212047]"
+                  >
+                    <option value="">不指定女孩</option>
+                    {attendingMembers.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        #{m.number} {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddException}
+                className="mt-2.5 w-full rounded-xl bg-[#212047] py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-[#2b2a5c]"
+              >
+                加入此局特殊條件
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 底部按鈕 */}
+        <div className="flex items-center justify-between border-t border-[#212047]/10 bg-[#F4FAF8] px-5 py-3.5 sm:px-6">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-white px-4 py-2 text-xs font-bold text-[#212047] ring-1 ring-[#212047]/15 hover:bg-gray-50"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="rounded-full bg-[#5BAE84] px-6 py-2 text-xs font-black text-white shadow-xs hover:bg-[#4FA87D]"
+          >
+            儲存調整並重新排班
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
   participants,
   onParticipantsChange,
@@ -32,11 +456,11 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
   const [exceptionSetKey, setExceptionSetKey] = useState<
     'set1_4' | 'set2_5' | 'set3'
   >('set1_4');
-  const [exceptionZone, setExceptionZone] = useState<AceZoneId | ''>('');
-  const [exceptionGirlId, setExceptionGirlId] = useState<string>('');
+  const [exceptionZone, setExceptionZone] = useState('');
+  const [exceptionGirlId, setExceptionGirlId] = useState('');
 
-  // 正在編輯特定成員進階規則的 ID
-  const [editingParticipantId, setEditingParticipantId] = useState<string | null>(null);
+  // 編輯彈窗狀態
+  const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
 
   const memberMap = new Map(MEMBERS.map((m) => [m.id, m]));
   const attendingMembers = MEMBERS.filter((m) =>
@@ -214,9 +638,9 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
             type="button"
             onClick={onLoadSundayCase}
             className="flex items-center gap-1.5 rounded-full bg-[#E2B855] px-3.5 py-1.5 text-xs font-black text-[#212047] shadow-xs transition-all hover:bg-[#d4ab48]"
-            title="自動載入品潔、秋秋、查理斯、翰翰、keith、羅胖與 6 個看台座位"
+            title="自動載入品潔、秋秋、查理斯、翰翰、姚售、keith、羅胖等 7 位成員與 7 席看台座位"
           >
-            <span>★ 載入 11/08 週日實戰群組</span>
+            <span>★ 載入 11/08 週日 7 人實戰名單</span>
           </button>
         </div>
       </div>
@@ -497,7 +921,6 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
         ) : (
           participants.map((p, index) => {
             const isFlex = p.role === 'flex';
-            const isEditing = editingParticipantId === p.id;
 
             return (
               <div
@@ -535,6 +958,14 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
 
                   {/* 排序與動作按鈕 */}
                   <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditingParticipant(p)}
+                      className="flex items-center gap-1 rounded-lg bg-[#5ECBC0] px-2.5 py-1 text-xs font-black text-[#212047] shadow-2xs hover:bg-[#7ADAD0]"
+                      title="編輯此朋友的偏好、心儀女孩與局數例外需求"
+                    >
+                      <span>✎ 調整需求</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleToggleParticipantRole(p.id)}
@@ -663,6 +1094,21 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
           })
         )}
       </div>
+
+      {/* 編輯參與者偏好與例外需求彈窗 */}
+      {editingParticipant && (
+        <EditParticipantModal
+          participant={editingParticipant}
+          attendingMemberIds={attendingMemberIds}
+          onClose={() => setEditingParticipant(null)}
+          onSave={(updated) => {
+            const nextList = participants.map((p) =>
+              p.id === updated.id ? updated : p
+            );
+            onParticipantsChange(nextList);
+          }}
+        />
+      )}
     </div>
   );
 };

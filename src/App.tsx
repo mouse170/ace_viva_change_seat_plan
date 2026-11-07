@@ -27,10 +27,43 @@ const PARTICIPANTS_STORAGE_KEY = 'ace_viva_plan_participants_v1';
 const MATCH_ID_STORAGE_KEY = 'ace_viva_selected_match_id_v1';
 
 const DEFAULT_PARTICIPANTS: Participant[] = [
-  { id: 'sample-1', name: '阿豪', role: 'fan', targetGirlIds: ['yuri'], priority: 1 },
-  { id: 'sample-2', name: '小陳', role: 'fan', targetGirlIds: ['chayounghyun'], priority: 2 },
-  { id: 'sample-3', name: '冠宇', role: 'fan', targetGirlIds: ['yipei'], priority: 3 },
-  { id: 'sample-4', name: '志明', role: 'fan', targetGirlIds: ['jungheejung'], priority: 4 },
+  { id: 'p-pinjie', name: '品潔', role: 'fan', targetGirlIds: ['ann'], priority: 1 },
+  {
+    id: 'p-qiuchiu',
+    name: '秋秋',
+    role: 'fan',
+    targetGirlIds: ['xuanxuan'],
+    setExceptions: [{ setKey: 'set1_4', preferredZone: 'A', targetGirlId: 'xuanxuan' }],
+    priority: 2,
+  },
+  {
+    id: 'p-charles',
+    name: '查理斯',
+    role: 'fan',
+    targetGirlIds: ['ann', 'yuri'],
+    setExceptions: [
+      { setKey: 'set2_5', preferredZone: 'A' },
+      { setKey: 'set1_4', preferredZones: ['A', 'C'] },
+    ],
+    priority: 3,
+  },
+  { id: 'p-hanhan', name: '翰翰', role: 'fan', targetGirlIds: ['yixuan'], priority: 4 },
+  { id: 'p-yaoshou', name: '姚售', role: 'fan', targetGirlIds: ['jungheejung'], priority: 5 },
+  {
+    id: 'p-keith',
+    name: 'keith',
+    role: 'fan',
+    targetGirlIds: ['yixuan', 'ann', 'nicole'],
+    preferDirectFront: true,
+    priority: 6,
+  },
+  {
+    id: 'p-luopang',
+    name: '羅胖',
+    role: 'fan',
+    targetGirlIds: ['chayounghyun', 'jungheejung'],
+    priority: 7,
+  },
 ];
 
 interface ErrorBoundaryProps {
@@ -121,8 +154,8 @@ export const MainApp: React.FC = () => {
         // ignore
       }
     }
-    // 預設給予 4 個範例座位
-    return parseSeatsInput('A5, B6, B12, C19');
+    // 預設給予 7 席週日實戰座位（包含 B3-20）
+    return parseSeatsInput('A20, A23, B8, B14, B20, C2, C4');
   });
 
   // 3. 參與者名單
