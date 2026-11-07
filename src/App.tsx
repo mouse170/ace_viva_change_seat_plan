@@ -95,6 +95,67 @@ export const App: React.FC = () => {
     localStorage.setItem(MATCH_ID_STORAGE_KEY, selectedMatchId);
   }, [selectedMatchId]);
 
+  // 載入 11/08 週日實戰群組（品潔、秋秋、查理斯、翰翰、keith、羅胖）
+  const handleLoadSundayCase = () => {
+    setSelectedMatchId('2026-11-08');
+    // 手邊持有 6 席座位（對應原票券座位）
+    const sundaySeats = parseSeatsInput('A20, A23, B8, B14, C2, C4');
+    setHeldSeats(sundaySeats);
+
+    // 6 位成員與各自進階偏好
+    const sundayParticipants: Participant[] = [
+      {
+        id: 'p-pinjie',
+        name: '品潔',
+        role: 'fan',
+        targetGirlIds: ['ann'],
+        priority: 1,
+      },
+      {
+        id: 'p-qiuchiu',
+        name: '秋秋',
+        role: 'fan',
+        targetGirlIds: ['xuanxuan'],
+        setExceptions: [
+          { setKey: 'set1_4', preferredZone: 'A', targetGirlId: 'xuanxuan' },
+        ],
+        priority: 2,
+      },
+      {
+        id: 'p-charles',
+        name: '查理斯',
+        role: 'fan',
+        targetGirlIds: ['yuri'],
+        setExceptions: [{ setKey: 'set2_5', preferredZone: 'A' }],
+        priority: 3,
+      },
+      {
+        id: 'p-hanhan',
+        name: '翰翰',
+        role: 'fan',
+        targetGirlIds: ['yixuan'],
+        priority: 4,
+      },
+      {
+        id: 'p-keith',
+        name: 'keith',
+        role: 'fan',
+        targetGirlIds: ['yixuan', 'ann', 'nicole'],
+        preferDirectFront: true, // 一暄、Ann、Nicole 任一位在正前方最好
+        priority: 5,
+      },
+      {
+        id: 'p-luopang',
+        name: '羅胖',
+        role: 'flex', // 彈性功能角，配合大家需求補位
+        targetGirlIds: ['yuri'],
+        priority: 6,
+      },
+    ];
+
+    setParticipants(sundayParticipants);
+  };
+
   // 目前場次資料
   const currentMatch: MatchStationSchedule = useMemo(() => {
     return (
@@ -277,6 +338,7 @@ export const App: React.FC = () => {
             participants={participants}
             onParticipantsChange={setParticipants}
             attendingMemberIds={attendingMemberIds}
+            onLoadSundayCase={handleLoadSundayCase}
           />
         </div>
 

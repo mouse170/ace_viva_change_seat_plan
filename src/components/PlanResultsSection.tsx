@@ -326,7 +326,7 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                         }`}
                       >
                         <img
-                          src={`./images/avatars/${p.targetGirlId}.jpg`}
+                          src={`./images/avatars/${p.targetGirlIds[0] || 'yuri'}.jpg`}
                           alt=""
                           className="h-5 w-5 rounded-full object-cover ring-1 ring-white/50"
                           onError={(e) => {
