@@ -469,7 +469,7 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
                   <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-[#212047]/5 pt-2">
                     <span className="text-[11px] font-bold text-[#212047]/60">心儀女孩：</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {p.targetGirlIds.map((gId) => {
+                      {(p.targetGirlIds || []).map((gId) => {
                         const girl = memberMap.get(gId);
                         if (!girl) return null;
                         return (

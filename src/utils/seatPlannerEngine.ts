@@ -30,6 +30,52 @@ export interface Participant {
   priority: number; // 數字越小優先度越高（1 開始）
 }
 
+/**
+ * 防禦性正規化函式：確保參與者物件具備完整結構，相容舊版本 targetGirlId 與未定義欄位
+ */
+export function sanitizeParticipant(raw: any, defaultIndex = 0): Participant {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      id: `p_${Date.now()}_${defaultIndex}`,
+      name: `球迷 ${defaultIndex + 1}`,
+      role: 'fan',
+      targetGirlIds: ['yuri'],
+      preferDirectFront: false,
+      priority: defaultIndex + 1,
+    };
+  }
+
+  const role: ParticipantRole = raw.role === 'flex' ? 'flex' : 'fan';
+  let targetGirlIds: string[] = [];
+
+  if (Array.isArray(raw.targetGirlIds) && raw.targetGirlIds.length > 0) {
+    targetGirlIds = raw.targetGirlIds
+      .filter((id: any) => typeof id === 'string' && id.trim().length > 0)
+      .map((id: string) => id.trim());
+  } else if (typeof raw.targetGirlId === 'string' && raw.targetGirlId.trim().length > 0) {
+    targetGirlIds = [raw.targetGirlId.trim()];
+  }
+
+  if (targetGirlIds.length === 0) {
+    targetGirlIds = ['yuri'];
+  }
+
+  let setExceptions: SetSpecificPreference[] | undefined = undefined;
+  if (Array.isArray(raw.setExceptions) && raw.setExceptions.length > 0) {
+    setExceptions = raw.setExceptions.filter((e: any) => e && typeof e === 'object');
+  }
+
+  return {
+    id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : `p_${Date.now()}_${defaultIndex}`,
+    name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : `球迷 ${defaultIndex + 1}`,
+    role,
+    targetGirlIds,
+    preferDirectFront: Boolean(raw.preferDirectFront),
+    setExceptions: setExceptions && setExceptions.length > 0 ? setExceptions : undefined,
+    priority: typeof raw.priority === 'number' ? raw.priority : defaultIndex + 1,
+  };
+}
+
 export interface ParticipantSetAssignment {
   participantId: string;
   participantName: string;
@@ -224,10 +270,14 @@ function evaluateParticipantSeatSatisfaction(
   const frontGirlAfter10 = memberMap.get(frontAfterId) || null;
 
   // 1. 若為配合型「彈性功能角（flex）」：固定基準分數，不強搶任何好位
-  if (participant.role === 'flex') {
+  const targetGirlIds = (Array.isArray(participant?.targetGirlIds) && participant.targetGirlIds.length > 0)
+    ? participant.targetGirlIds
+    : ['yuri'];
+
+  if (participant?.role === 'flex') {
     return {
       satisfactionScore: 40,
-      bestTargetGirlId: participant.targetGirlIds[0] || 'yuri',
+      bestTargetGirlId: targetGirlIds[0],
       distanceInit: 0,
       distanceAfter10: 0,
       directionInitText: '自由補位',
@@ -242,7 +292,7 @@ function evaluateParticipantSeatSatisfaction(
   }
 
   // 2. 檢查是否有針對此局的「例外規則」
-  let effectiveGirlIds = participant.targetGirlIds.length > 0 ? participant.targetGirlIds : ['yuri'];
+  let effectiveGirlIds = targetGirlIds;
   let preferredZone: AceZoneId | undefined = undefined;
   let exceptionNote: string | undefined = undefined;
 
@@ -357,14 +407,18 @@ export function solveSetPlan(
   prevSetAssignments?: Map<string, HeldSeat>
 ): SetPlanResult {
   const memberMap = new Map(MEMBERS.map((m) => [m.id, m]));
+  const safeHeldSeats = Array.isArray(heldSeats) ? heldSeats : [];
+  const safeParticipants = (Array.isArray(participants) ? participants : []).map((p, idx) =>
+    sanitizeParticipant(p, idx)
+  );
 
-  if (heldSeats.length === 0 || participants.length === 0) {
+  if (safeHeldSeats.length === 0 || safeParticipants.length === 0) {
     return {
       setKey: setStation.setKey,
       setLabel: setStation.setLabel,
       setShortLabel: setStation.setShortLabel,
-      assignments: participants.map((p) => {
-        const firstGirlId = p.targetGirlIds[0] || 'yuri';
+      assignments: safeParticipants.map((p) => {
+        const firstGirlId = (p.targetGirlIds && p.targetGirlIds[0]) || 'yuri';
         return {
           participantId: p.id,
           participantName: p.name,
@@ -385,8 +439,8 @@ export function solveSetPlan(
           needsMoveFromPrevSet: false,
         };
       }),
-      unassignedSeats: [...heldSeats],
-      unassignedParticipants: [...participants],
+      unassignedSeats: [...safeHeldSeats],
+      unassignedParticipants: [...safeParticipants],
     };
   }
 
@@ -519,7 +573,7 @@ export function solveSetPlan(
       });
     } else {
       unassignedParticipants.push(p);
-      const firstGirlId = p.targetGirlIds[0] || 'yuri';
+      const firstGirlId = (p.targetGirlIds && p.targetGirlIds[0]) || 'yuri';
       assignments.push({
         participantId: p.id,
         participantName: p.name,
@@ -542,7 +596,7 @@ export function solveSetPlan(
     }
   });
 
-  const unassignedSeats = heldSeats.filter((_, idx) => !usedSeats.has(idx));
+  const unassignedSeats = safeHeldSeats.filter((_, idx) => !usedSeats.has(idx));
 
   return {
     setKey: setStation.setKey,
@@ -562,11 +616,16 @@ export function solveFullMatchPlan(
   heldSeats: HeldSeat[],
   participants: Participant[]
 ): FullMatchPlanResult {
+  const safeHeldSeats = Array.isArray(heldSeats) ? heldSeats : [];
+  const safeParticipants = (Array.isArray(participants) ? participants : []).map((p, idx) =>
+    sanitizeParticipant(p, idx)
+  );
+
   const setsResults: SetPlanResult[] = [];
   let prevAssignmentsMap: Map<string, HeldSeat> | undefined = undefined;
 
   for (const setStation of match.sets) {
-    const setResult = solveSetPlan(setStation, heldSeats, participants, prevAssignmentsMap);
+    const setResult = solveSetPlan(setStation, safeHeldSeats, safeParticipants, prevAssignmentsMap);
     setsResults.push(setResult);
 
     prevAssignmentsMap = new Map<string, HeldSeat>();
@@ -580,8 +639,8 @@ export function solveFullMatchPlan(
   return {
     match,
     sets: setsResults,
-    participants,
-    heldSeats,
+    participants: safeParticipants,
+    heldSeats: safeHeldSeats,
   };
 }
 
@@ -596,7 +655,7 @@ export function getIndividualPlanItinerary(
   if (!participant) return null;
 
   const memberMap = new Map(MEMBERS.map((m) => [m.id, m]));
-  const firstGirlId = participant.targetGirlIds[0] || 'yuri';
+  const firstGirlId = (participant.targetGirlIds && participant.targetGirlIds[0]) || 'yuri';
   let targetGirl = memberMap.get(firstGirlId) || MEMBERS[0];
 
   const steps: IndividualItineraryStep[] = [];

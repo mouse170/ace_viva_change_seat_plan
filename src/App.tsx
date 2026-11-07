@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Component, type ErrorInfo, useEffect, useMemo, useState } from 'react';
 import {
   STATION_ROTATION_SCHEDULES,
   type MatchStationSchedule,
@@ -10,6 +10,7 @@ import {
   parseSeatsInput,
   solveFullMatchPlan,
   getIndividualPlanItinerary,
+  sanitizeParticipant,
 } from './utils/seatPlannerEngine';
 import {
   renderFullMatchPlanCard,
@@ -25,7 +26,82 @@ const HELD_SEATS_STORAGE_KEY = 'ace_viva_held_seats_v1';
 const PARTICIPANTS_STORAGE_KEY = 'ace_viva_plan_participants_v1';
 const MATCH_ID_STORAGE_KEY = 'ace_viva_selected_match_id_v1';
 
-export const App: React.FC = () => {
+const DEFAULT_PARTICIPANTS: Participant[] = [
+  { id: 'sample-1', name: '阿豪', role: 'fan', targetGirlIds: ['yuri'], priority: 1 },
+  { id: 'sample-2', name: '小陳', role: 'fan', targetGirlIds: ['chayounghyun'], priority: 2 },
+  { id: 'sample-3', name: '冠宇', role: 'fan', targetGirlIds: ['yipei'], priority: 3 },
+  { id: 'sample-4', name: '志明', role: 'fan', targetGirlIds: ['jungheejung'], priority: 4 },
+];
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class RootErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('RootErrorBoundary caught error:', error, errorInfo);
+  }
+
+  handleResetStorage = () => {
+    localStorage.removeItem(HELD_SEATS_STORAGE_KEY);
+    localStorage.removeItem(PARTICIPANTS_STORAGE_KEY);
+    localStorage.removeItem(MATCH_ID_STORAGE_KEY);
+    window.location.reload();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-[#F4FAF8] p-4 text-[#212047]">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl ring-1 ring-red-100">
+            <h2 className="text-lg font-black text-red-600">系統發生非預期錯誤</h2>
+            <p className="mt-2 text-xs leading-relaxed text-[#212047]/70">
+              偵測到本機快取格式衝突或資料解析異常。請點選下方按鈕清除暫存快取並重整，即可立即恢復正常運作。
+            </p>
+            {this.state.error && (
+              <pre className="mt-3 max-h-32 overflow-auto rounded-xl bg-gray-50 p-2.5 text-[10px] text-gray-700">
+                {this.state.error.message}
+              </pre>
+            )}
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={this.handleResetStorage}
+                className="flex-1 rounded-xl bg-[#212047] py-2.5 text-xs font-bold text-white shadow-md hover:bg-[#2b2a5c]"
+              >
+                重設快取並重整
+              </button>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="rounded-xl border border-[#212047]/20 px-4 py-2.5 text-xs font-bold text-[#212047]"
+              >
+                重新整理
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export const MainApp: React.FC = () => {
   // 1. 選取場次
   const [selectedMatchId, setSelectedMatchId] = useState<string>(() => {
     const saved = localStorage.getItem(MATCH_ID_STORAGE_KEY);
@@ -37,7 +113,10 @@ export const App: React.FC = () => {
     const saved = localStorage.getItem(HELD_SEATS_STORAGE_KEY);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       } catch {
         // ignore
       }
@@ -51,18 +130,15 @@ export const App: React.FC = () => {
     const saved = localStorage.getItem(PARTICIPANTS_STORAGE_KEY);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((item, idx) => sanitizeParticipant(item, idx));
+        }
       } catch {
         // ignore
       }
     }
-    // 預設 4 人名單
-    return [
-      { id: 'sample-1', name: '阿豪', targetGirlId: 'yuri', priority: 1 },
-      { id: 'sample-2', name: '小陳', targetGirlId: 'chayounghyun', priority: 2 },
-      { id: 'sample-3', name: '冠宇', targetGirlId: 'yipei', priority: 3 },
-      { id: 'sample-4', name: '志明', targetGirlId: 'jungheejung', priority: 4 },
-    ];
+    return DEFAULT_PARTICIPANTS;
   });
 
   // 4. 圖卡生成狀態與 Modal
@@ -500,6 +576,14 @@ export const App: React.FC = () => {
         </div>
       )}
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <RootErrorBoundary>
+      <MainApp />
+    </RootErrorBoundary>
   );
 };
 
