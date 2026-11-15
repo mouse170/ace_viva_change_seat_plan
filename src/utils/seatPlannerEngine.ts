@@ -190,35 +190,61 @@ export function getSpectatorSeatGlobalX(zone: AceZoneId, seatNum: number): numbe
 }
 
 /**
- * 女孩站位 slot 在觀眾面向球場視角之 X 座標中心：
- * slot 2: 16–23 號席位區段（該區偏左，中心約 19.5 號席位）-> 23 - 19.5 = 3.5
- * slot 1: 9–15 號席位區段（該區正中，中心 12 號席位）-> 23 - 12 = 11
- * slot 0: 1–8 號席位區段（該區偏右，中心約 4.5 號席位）-> 23 - 4.5 = 18.5
+ * 女孩站位 slot 在觀眾面向球場視角之 X 座標中心（支援每區 3 人或 4 人站位）：
  */
-export function getSpectatorGirlGlobalX(zone: AceZoneId, slot: 0 | 1 | 2): number {
-  const slotInnerX: Record<0 | 1 | 2, number> = {
-    2: 3.5,  // 16-23 號
-    1: 11,   // 9-15 號
-    0: 18.5, // 1-8 號
-  };
+export function getSpectatorGirlGlobalX(
+  zone: AceZoneId,
+  slot: number,
+  numGirlsInZone: number = 3
+): number {
   const baseZoneOffset: Record<AceZoneId, number> = {
     C: 0,
     B: 23,
     A: 46,
   };
-  return baseZoneOffset[zone] + slotInnerX[slot];
+
+  if (numGirlsInZone === 4) {
+    // 4 人站位：由右至左 0: 1-6號, 1: 7-12號, 2: 13-18號, 3: 19-23號
+    const slot4X = [19.5, 13.5, 7.5, 2.0];
+    return baseZoneOffset[zone] + (slot4X[slot] ?? 11);
+  }
+
+  // 標準 3 人站位：0: 1-8號（右）, 1: 9-15號（中）, 2: 16-23號（左）
+  const slot3X: Record<number, number> = {
+    0: 18.5,
+    1: 11.0,
+    2: 3.5,
+  };
+  return baseZoneOffset[zone] + (slot3X[slot] ?? 11);
 }
 
-const SLOT_NAMES: Record<0 | 1 | 2, string> = {
-  0: '1–8 號（右側）',
-  1: '9–15 號（中央）',
-  2: '16–23 號（左側）',
+/**
+ * 依據座位編號與該區女孩人數，計算觀眾席正前方對應的女孩索引
+ */
+export function getSeatSlotIndex(seatNum: number, numGirlsInZone: number): number {
+  if (numGirlsInZone === 4) {
+    if (seatNum <= 6) return 0;
+    if (seatNum <= 12) return 1;
+    if (seatNum <= 18) return 2;
+    return 3;
+  }
+  if (seatNum <= 8) return 0;
+  if (seatNum <= 15) return 1;
+  return 2;
+}
+
+const SLOT_NAMES: Record<number, string> = {
+  0: '右位',
+  1: '中位',
+  2: '左位',
+  3: '最左位',
 };
 
-const SLOT_APPROX_SEAT_NUM: Record<0 | 1 | 2, number> = {
+const SLOT_APPROX_SEAT_NUM: Record<number, number> = {
   0: 5,
   1: 12,
   2: 19,
+  3: 22,
 };
 
 /**
@@ -228,8 +254,8 @@ export function computeTargetGirlRadar(
   assignedSeat: HeldSeat | null,
   targetGirlId: string,
   setStation: {
-    initial: Record<AceZoneId, [string, string, string]>;
-    after10Points: Record<AceZoneId, [string, string, string]>;
+    initial: Record<AceZoneId, string[]>;
+    after10Points: Record<AceZoneId, string[]>;
   }
 ): TargetGirlRadarPill | undefined {
   const member = MEMBERS.find((m) => m.id === targetGirlId);
@@ -237,34 +263,37 @@ export function computeTargetGirlRadar(
 
   const zones: AceZoneId[] = ['A', 'B', 'C'];
   let initZone: AceZoneId = 'B';
-  let initSlot: 0 | 1 | 2 = 1;
+  let initSlot = 1;
   let afterZone: AceZoneId = 'B';
-  let afterSlot: 0 | 1 | 2 = 1;
+  let afterSlot = 1;
 
   for (const z of zones) {
-    const iIdx = setStation.initial[z].indexOf(targetGirlId);
+    const iIdx = setStation.initial[z]?.indexOf(targetGirlId) ?? -1;
     if (iIdx !== -1) {
       initZone = z;
-      initSlot = iIdx as 0 | 1 | 2;
+      initSlot = iIdx;
     }
-    const aIdx = setStation.after10Points[z].indexOf(targetGirlId);
+    const aIdx = setStation.after10Points[z]?.indexOf(targetGirlId) ?? -1;
     if (aIdx !== -1) {
       afterZone = z;
-      afterSlot = aIdx as 0 | 1 | 2;
+      afterSlot = aIdx;
     }
   }
 
   const sGlobal = getSpectatorSeatGlobalX(assignedSeat.zone, assignedSeat.seat);
 
-  const buildPhaseDetail = (zone: AceZoneId, slot: 0 | 1 | 2): PhaseRadarDetail => {
-    const gGlobal = getSpectatorGirlGlobalX(zone, slot);
+  const buildPhaseDetail = (
+    zone: AceZoneId,
+    slot: number,
+    numGirls: number
+  ): PhaseRadarDetail => {
+    const gGlobal = getSpectatorGirlGlobalX(zone, slot, numGirls);
     const isSameZone = assignedSeat.zone === zone;
 
     let isDirectFront = false;
     if (isSameZone) {
-      if (slot === 0 && assignedSeat.seat >= 1 && assignedSeat.seat <= 8) isDirectFront = true;
-      if (slot === 1 && assignedSeat.seat >= 9 && assignedSeat.seat <= 15) isDirectFront = true;
-      if (slot === 2 && assignedSeat.seat >= 16 && assignedSeat.seat <= 23) isDirectFront = true;
+      const mySlot = getSeatSlotIndex(assignedSeat.seat, numGirls);
+      if (mySlot === slot) isDirectFront = true;
     }
 
     // 觀眾面向球場：gGlobal > sGlobal 表示在右邊（A 區方向），gGlobal < sGlobal 表示在左邊（C 區方向）
@@ -283,14 +312,14 @@ export function computeTargetGirlRadar(
       }
     }
 
-    const targetSeatLabel = `${zone}${SLOT_APPROX_SEAT_NUM[slot]}`;
+    const targetSeatLabel = `${zone}${SLOT_APPROX_SEAT_NUM[slot] || 12}`;
     const targetXPercent = Math.max(2, Math.min(98, (gGlobal / 68) * 100));
     const seatXPercent = Math.max(2, Math.min(98, (sGlobal / 68) * 100));
 
     return {
       zone,
-      slotIndex: slot,
-      slotName: SLOT_NAMES[slot],
+      slotIndex: (slot > 2 ? 2 : slot) as 0 | 1 | 2,
+      slotName: SLOT_NAMES[slot] || '應援位',
       isDirectFront,
       isSameZone,
       offsetSeats,
@@ -302,14 +331,17 @@ export function computeTargetGirlRadar(
     };
   };
 
+  const initNum = setStation.initial[initZone]?.length || 3;
+  const afterNum = setStation.after10Points[afterZone]?.length || 3;
+
   return {
     targetGirlId: member.id,
     targetGirlName: member.name,
     targetGirlNumber: member.number,
     targetGirlZone: afterZone,
     seatLabel: assignedSeat.label,
-    initial: buildPhaseDetail(initZone, initSlot),
-    after10: buildPhaseDetail(afterZone, afterSlot),
+    initial: buildPhaseDetail(initZone, initSlot, initNum),
+    after10: buildPhaseDetail(afterZone, afterSlot, afterNum),
   };
 }
 
@@ -320,18 +352,18 @@ export function calculateSeatToGirlDistance(
   seatZone: AceZoneId,
   seatNum: number,
   girlZone: AceZoneId,
-  girlSlotIndex: 0 | 1 | 2
+  girlSlotIndex: number,
+  numGirlsInZone: number = 3
 ): { distance: number; directionText: string; isDirectFront: boolean } {
   const sGlobal = getSpectatorSeatGlobalX(seatZone, seatNum);
-  const gGlobal = getSpectatorGirlGlobalX(girlZone, girlSlotIndex);
+  const gGlobal = getSpectatorGirlGlobalX(girlZone, girlSlotIndex, numGirlsInZone);
   const dist = Math.abs(gGlobal - sGlobal);
 
   const isSameZone = seatZone === girlZone;
   let isDirectFront = false;
   if (isSameZone) {
-    if (girlSlotIndex === 0 && seatNum >= 1 && seatNum <= 8) isDirectFront = true;
-    if (girlSlotIndex === 1 && seatNum >= 9 && seatNum <= 15) isDirectFront = true;
-    if (girlSlotIndex === 2 && seatNum >= 16 && seatNum <= 23) isDirectFront = true;
+    const mySlot = getSeatSlotIndex(seatNum, numGirlsInZone);
+    if (mySlot === girlSlotIndex) isDirectFront = true;
   }
 
   let directionText = '正前方直視';
@@ -351,31 +383,34 @@ function evaluateSingleGirlSeat(
   seat: HeldSeat,
   girlId: string,
   setStation: {
-    initial: Record<AceZoneId, [string, string, string]>;
-    after10Points: Record<AceZoneId, [string, string, string]>;
+    initial: Record<AceZoneId, string[]>;
+    after10Points: Record<AceZoneId, string[]>;
   }
 ) {
   const zones: AceZoneId[] = ['A', 'B', 'C'];
   let initZone: AceZoneId = 'B';
-  let initSlot: 0 | 1 | 2 = 1;
+  let initSlot = 1;
   let afterZone: AceZoneId = 'B';
-  let afterSlot: 0 | 1 | 2 = 1;
+  let afterSlot = 1;
 
   for (const z of zones) {
-    const iIdx = setStation.initial[z].indexOf(girlId);
+    const iIdx = setStation.initial[z]?.indexOf(girlId) ?? -1;
     if (iIdx !== -1) {
       initZone = z;
-      initSlot = iIdx as 0 | 1 | 2;
+      initSlot = iIdx;
     }
-    const aIdx = setStation.after10Points[z].indexOf(girlId);
+    const aIdx = setStation.after10Points[z]?.indexOf(girlId) ?? -1;
     if (aIdx !== -1) {
       afterZone = z;
-      afterSlot = aIdx as 0 | 1 | 2;
+      afterSlot = aIdx;
     }
   }
 
-  const resInit = calculateSeatToGirlDistance(seat.zone, seat.seat, initZone, initSlot);
-  const resAfter = calculateSeatToGirlDistance(seat.zone, seat.seat, afterZone, afterSlot);
+  const initNum = setStation.initial[initZone]?.length || 3;
+  const afterNum = setStation.after10Points[afterZone]?.length || 3;
+
+  const resInit = calculateSeatToGirlDistance(seat.zone, seat.seat, initZone, initSlot, initNum);
+  const resAfter = calculateSeatToGirlDistance(seat.zone, seat.seat, afterZone, afterSlot, afterNum);
 
   const weightedDistance = resInit.distance * 0.35 + resAfter.distance * 0.65;
   let baseScore = Math.max(5, 100 - weightedDistance * 3.5);
@@ -406,8 +441,8 @@ function evaluateParticipantSeatSatisfaction(
   participant: Participant,
   setStation: {
     setKey: 'set1_4' | 'set2_5' | 'set3';
-    initial: Record<AceZoneId, [string, string, string]>;
-    after10Points: Record<AceZoneId, [string, string, string]>;
+    initial: Record<AceZoneId, string[]>;
+    after10Points: Record<AceZoneId, string[]>;
   }
 ): {
   satisfactionScore: number;
@@ -426,10 +461,13 @@ function evaluateParticipantSeatSatisfaction(
 } {
   const memberMap = new Map(MEMBERS.map((m) => [m.id, m]));
 
-  // 取得本座正前方女孩
-  const seatMapping = getSeatPositionMapping(seat.seat);
-  const frontInitId = setStation.initial[seat.zone][seatMapping.slotIndex];
-  const frontAfterId = setStation.after10Points[seat.zone][seatMapping.slotIndex];
+  // 取得本座正前方女孩（依據該區女孩人數動態計算）
+  const initList = setStation.initial[seat.zone] || [];
+  const afterList = setStation.after10Points[seat.zone] || [];
+  const slotInit = getSeatSlotIndex(seat.seat, initList.length || 3);
+  const slotAfter = getSeatSlotIndex(seat.seat, afterList.length || 3);
+  const frontInitId = initList[slotInit];
+  const frontAfterId = afterList[slotAfter];
   const frontGirlInit = memberMap.get(frontInitId) || null;
   const frontGirlAfter10 = memberMap.get(frontAfterId) || null;
 
@@ -573,8 +611,8 @@ export function solveSetPlan(
     setKey: 'set1_4' | 'set2_5' | 'set3';
     setLabel: string;
     setShortLabel: string;
-    initial: Record<AceZoneId, [string, string, string]>;
-    after10Points: Record<AceZoneId, [string, string, string]>;
+    initial: Record<AceZoneId, string[]>;
+    after10Points: Record<AceZoneId, string[]>;
   },
   heldSeats: HeldSeat[],
   participants: Participant[],
