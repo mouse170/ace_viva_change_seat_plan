@@ -156,9 +156,9 @@ export const ConfigStringModal: React.FC<ConfigStringModalProps> = ({
   const handleLoadOfficialSundayPreset = () => {
     const config = {
       version: 1,
-      name: '11/08（日）最新 7 人實戰配置',
+      name: '7 人實戰範例配置',
       savedAt: new Date().toISOString(),
-      matchId: '2026-11-08',
+      matchId,
       heldSeats: [
         { seatKey: 'A-20', zone: 'A', seatNumber: 20, row: 3, label: 'A 區 20 號' },
         { seatKey: 'A-23', zone: 'A', seatNumber: 23, row: 3, label: 'A 區 23 號' },

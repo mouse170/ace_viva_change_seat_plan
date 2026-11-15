@@ -1,6 +1,6 @@
 import React, { Component, type ErrorInfo, useEffect, useMemo, useState } from 'react';
 import {
-  STATION_ROTATION_SCHEDULES,
+  ACTIVE_STATION_ROTATION_SCHEDULES,
   type MatchStationSchedule,
 } from './data/schedule';
 import { TEAM_INFO } from './data/members';
@@ -134,10 +134,13 @@ class RootErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
 }
 
 export const MainApp: React.FC = () => {
-  // 1. 選取場次
+  // 1. 選取場次（自動過濾已超過當週的賽事）
   const [selectedMatchId, setSelectedMatchId] = useState<string>(() => {
     const saved = localStorage.getItem(MATCH_ID_STORAGE_KEY);
-    return saved || '2026-11-07';
+    if (saved && ACTIVE_STATION_ROTATION_SCHEDULES.some((m) => m.matchId === saved)) {
+      return saved;
+    }
+    return ACTIVE_STATION_ROTATION_SCHEDULES[0]?.matchId || '2026-11-21';
   });
 
   // 2. 手邊持有座位
@@ -217,9 +220,11 @@ export const MainApp: React.FC = () => {
     localStorage.setItem(MATCH_ID_STORAGE_KEY, selectedMatchId);
   }, [selectedMatchId]);
 
-  // 載入 11/08 週日實戰群組（品潔、秋秋、查理斯、翰翰、姚售、keith、羅胖 7 人配置）
+  // 載入 7 人實戰範例群組（品潔、秋秋、查理斯、翰翰、姚售、keith、羅胖 7 人配置）
   const handleLoadSundayCase = () => {
-    setSelectedMatchId('2026-11-08');
+    if (!ACTIVE_STATION_ROTATION_SCHEDULES.some((m) => m.matchId === selectedMatchId)) {
+      setSelectedMatchId(ACTIVE_STATION_ROTATION_SCHEDULES[0]?.matchId || '2026-11-21');
+    }
     // 手邊持有 7 席座位（包含新增之 B3-20）
     const sundaySeats = parseSeatsInput('A20, A23, B8, B14, B20, C2, C4');
     setHeldSeats(sundaySeats);
@@ -290,8 +295,8 @@ export const MainApp: React.FC = () => {
   // 目前場次資料
   const currentMatch: MatchStationSchedule = useMemo(() => {
     return (
-      STATION_ROTATION_SCHEDULES.find((m) => m.matchId === selectedMatchId) ||
-      STATION_ROTATION_SCHEDULES[0]
+      ACTIVE_STATION_ROTATION_SCHEDULES.find((m) => m.matchId === selectedMatchId) ||
+      ACTIVE_STATION_ROTATION_SCHEDULES[0]
     );
   }, [selectedMatchId]);
 
@@ -387,7 +392,7 @@ export const MainApp: React.FC = () => {
                   onChange={(e) => setSelectedMatchId(e.target.value)}
                   className="rounded-xl border border-[#212047]/20 bg-[#F4FAF8] px-3 py-1.5 text-xs font-black text-[#212047] focus:border-[#5ECBC0] focus:outline-none"
                 >
-                  {STATION_ROTATION_SCHEDULES.map((m) => (
+                  {ACTIVE_STATION_ROTATION_SCHEDULES.map((m) => (
                     <option key={m.matchId} value={m.matchId}>
                       {m.dateLabel} · vs {m.opponent}
                     </option>
@@ -425,7 +430,7 @@ export const MainApp: React.FC = () => {
                 onChange={(e) => setSelectedMatchId(e.target.value)}
                 className="w-full bg-transparent text-xs font-bold text-[#212047] focus:outline-none"
               >
-                {STATION_ROTATION_SCHEDULES.map((m) => (
+                {ACTIVE_STATION_ROTATION_SCHEDULES.map((m) => (
                   <option key={m.matchId} value={m.matchId}>
                     {m.dateLabel} · vs {m.opponent}（{m.themeName}）
                   </option>

@@ -621,7 +621,7 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
             className="flex items-center gap-1.5 rounded-full bg-[#E2B855] px-3.5 py-1.5 text-xs font-black text-[#212047] shadow-xs transition-all hover:bg-[#d4ab48]"
             title="自動載入品潔、秋秋、查理斯、翰翰、姚售、keith、羅胖等 7 位成員與 7 席看台座位"
           >
-            <span>★ 載入 11/08 週日 7 人實戰名單</span>
+            <span>★ 載入 7 人實戰範例名單</span>
           </button>
         </div>
       </div>

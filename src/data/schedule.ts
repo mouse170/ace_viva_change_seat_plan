@@ -1340,10 +1340,10 @@ export const THEME_WEEKS: ThemeWeekGroup[] = [
   },
   {
     weekId: 'week-2026-11-07',
-    weekShortLabel: '11/07–11/08 本週主題日',
+    weekShortLabel: '11/07–11/08 復古週',
     themeTitle: 'Old! MY CAR 我的 90 年代',
     dateRangeLabel: '11/07 (六) – 11/08 (日)',
-    isCurrentWeek: true,
+    isExpired: true,
     matches: HOME_SCHEDULE.filter(
       (m) => m.id === '2026-11-07' || m.id === '2026-11-08'
     ),
@@ -1353,6 +1353,7 @@ export const THEME_WEEKS: ThemeWeekGroup[] = [
     weekShortLabel: '11/21–11/22 致青春週',
     themeTitle: '致青春 創造 WIN',
     dateRangeLabel: '11/21 (六) – 11/22 (日)',
+    isCurrentWeek: true,
     matches: HOME_SCHEDULE.filter(
       (m) => m.id === '2026-11-21' || m.id === '2026-11-22'
     ),
@@ -1369,22 +1370,26 @@ export const THEME_WEEKS: ThemeWeekGroup[] = [
 ];
 
 /**
- * 取得有效基準日期（YYYY-MM-DD），自動隱藏已過期之主題週（如 10/31–11/01 開幕主題週）
+ * 取得有效基準日期（YYYY-MM-DD），自動隱藏已經超過當週的主題週
  */
 export function getActiveThemeWeeks(referenceDate?: Date): ThemeWeekGroup[] {
   const now = referenceDate ?? new Date();
   const localIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  // 確保至少以 2026-11-07 為基準過濾已結束之 10/31–11/01 開幕週
-  const effectiveToday = localIso > '2026-11-07' && localIso <= '2026-12-13' ? localIso : '2026-11-07';
 
   const active = THEME_WEEKS.filter((week) => {
     if (week.isExpired) return false;
     const lastMatch = week.matches[week.matches.length - 1];
     if (!lastMatch) return false;
-    return lastMatch.id >= effectiveToday;
+    return lastMatch.id >= localIso;
   });
 
-  return active.length > 0 ? active : THEME_WEEKS.filter((w) => !w.isExpired);
+  if (active.length > 0) {
+    return active;
+  }
+
+  // 若整個賽季皆已結束，至少保留最後一週以免畫面空白
+  const nonExpired = THEME_WEEKS.filter((w) => !w.isExpired);
+  return nonExpired.length > 0 ? nonExpired : [THEME_WEEKS[THEME_WEEKS.length - 1]];
 }
 
 export const ACTIVE_THEME_WEEKS: ThemeWeekGroup[] = getActiveThemeWeeks();
@@ -1392,6 +1397,26 @@ export const ACTIVE_THEME_WEEKS: ThemeWeekGroup[] = getActiveThemeWeeks();
 export const ACTIVE_HOME_SCHEDULE: HomeMatchSchedule[] = ACTIVE_THEME_WEEKS.flatMap(
   (week) => week.matches
 );
+
+/**
+ * 依目前日期過濾出未超過當週之有效應援站位場次
+ */
+export function getActiveStationSchedules(
+  referenceDate?: Date
+): MatchStationSchedule[] {
+  const activeMatchIds = new Set(
+    getActiveThemeWeeks(referenceDate).flatMap((week) =>
+      week.matches.map((m) => m.id)
+    )
+  );
+  const filtered = STATION_ROTATION_SCHEDULES.filter((s) =>
+    activeMatchIds.has(s.matchId)
+  );
+  return filtered.length > 0 ? filtered : [STATION_ROTATION_SCHEDULES[STATION_ROTATION_SCHEDULES.length - 1]];
+}
+
+export const ACTIVE_STATION_ROTATION_SCHEDULES: MatchStationSchedule[] =
+  getActiveStationSchedules();
 
 /**
  * 合併同一主題週之兩日班表，自動比對「兩日全勤」與「單日限定（週六限定 / 週日限定）」成員名單

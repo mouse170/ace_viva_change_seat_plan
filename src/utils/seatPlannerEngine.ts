@@ -1,6 +1,7 @@
 import {
   type AceZoneId,
   type MatchStationSchedule,
+  ACTIVE_STATION_ROTATION_SCHEDULES,
   getSeatPositionMapping,
 } from '../data/schedule';
 import { MEMBERS, type AceVivaMember } from '../data/members';
@@ -1140,7 +1141,10 @@ export function parsePlanConfigFromString(jsonStr: string): {
       return { success: false, errorMessage: '無效的 JSON 物件格式。' };
     }
 
-    const matchId = typeof raw.matchId === 'string' ? raw.matchId : '2026-11-08';
+    const matchId =
+      typeof raw.matchId === 'string'
+        ? raw.matchId
+        : ACTIVE_STATION_ROTATION_SCHEDULES[0]?.matchId || '2026-11-21';
 
     // 1. 解析座位列表
     let seatInputStr = '';
