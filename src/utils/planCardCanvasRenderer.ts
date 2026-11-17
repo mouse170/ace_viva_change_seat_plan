@@ -397,13 +397,16 @@ export async function renderIndividualPlanCard(
   match: import('../data/schedule').MatchStationSchedule
 ): Promise<string> {
   // 預先載入女孩頭像圖片
-  const avatarPromises: Promise<any>[] = [];
-  avatarPromises.push(preloadImage(`./images/avatars/${itinerary.targetGirl.id}.jpg`));
+  const avatarUrls = new Set<string>();
+  avatarUrls.add(`./images/avatars/${itinerary.targetGirl.id}.jpg`);
   itinerary.steps.forEach((s) => {
-    if (s.frontGirlInit) avatarPromises.push(preloadImage(`./images/avatars/${s.frontGirlInit.id}.jpg`));
-    if (s.frontGirlAfter10) avatarPromises.push(preloadImage(`./images/avatars/${s.frontGirlAfter10.id}.jpg`));
+    if (s.frontGirlInit) avatarUrls.add(`./images/avatars/${s.frontGirlInit.id}.jpg`);
+    if (s.frontGirlAfter10) avatarUrls.add(`./images/avatars/${s.frontGirlAfter10.id}.jpg`);
+    s.allTargetGirlRadars?.forEach((r) => {
+      avatarUrls.add(`./images/avatars/${r.targetGirlId}.jpg`);
+    });
   });
-  await Promise.all(avatarPromises);
+  await Promise.all(Array.from(avatarUrls).map((url) => preloadImage(url)));
 
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -411,7 +414,7 @@ export async function renderIndividualPlanCard(
 
   const cardWidth = 840;
   const headerHeight = 240;
-  const stepCardHeight = 238;
+  const stepCardHeight = 272;
   const numSteps = itinerary.steps.length;
   const stepsTotalHeight = numSteps * (stepCardHeight + 16);
   const footerHeight = 140;
@@ -575,10 +578,10 @@ export async function renderIndividualPlanCard(
     }
     ctx.restore();
 
-    // (E) 下半部正對女孩（雙時段）與面向球場雷達圖卡
+    // (E) 下半部正對女孩（雙時段）與精簡面向球場雷達視角圖
     ctx.save();
     const bottomInfoY = cardY + 84;
-    const bottomInfoH = 138;
+    const bottomInfoH = 172;
     drawRoundedRect(ctx, 60, bottomInfoY, cardW - 40, bottomInfoH, 12, 'rgba(17, 26, 46, 0.85)', 'rgba(94, 203, 192, 0.3)', 1);
 
     // 雙時段正前方直視
@@ -586,74 +589,149 @@ export async function renderIndividualPlanCard(
     ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('本座正前直視：', 75, bottomInfoY + 22);
+    ctx.fillText('正前直視：', 75, bottomInfoY + 20);
 
-    let curPillX = 160;
+    let curPillX = 145;
     if (step.frontGirlInit) {
       const fInitImg = imageCache.get(`./images/avatars/${step.frontGirlInit.id}.jpg`) || null;
-      drawCircularAvatar(ctx, fInitImg, step.frontGirlInit.name, curPillX + 12, bottomInfoY + 22, 12, '#5ECBC0', 1.5);
+      drawCircularAvatar(ctx, fInitImg, step.frontGirlInit.name, curPillX + 11, bottomInfoY + 20, 11, '#5ECBC0', 1.5);
       ctx.fillStyle = '#5ECBC0';
       ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
-      ctx.fillText(`0-10分 ${step.frontGirlInit.name}`, curPillX + 30, bottomInfoY + 22);
+      ctx.fillText(`0-10分 ${step.frontGirlInit.name}`, curPillX + 27, bottomInfoY + 20);
       curPillX += 135;
     }
 
     if (step.frontGirlAfter10) {
       const fAfterImg = imageCache.get(`./images/avatars/${step.frontGirlAfter10.id}.jpg`) || null;
-      drawCircularAvatar(ctx, fAfterImg, step.frontGirlAfter10.name, curPillX + 12, bottomInfoY + 22, 12, '#F59E0B', 1.5);
+      drawCircularAvatar(ctx, fAfterImg, step.frontGirlAfter10.name, curPillX + 11, bottomInfoY + 20, 11, '#F59E0B', 1.5);
       ctx.fillStyle = '#FBBF24';
       ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
-      ctx.fillText(`破10分 ${step.frontGirlAfter10.name}`, curPillX + 30, bottomInfoY + 22);
-      curPillX += 135;
+      ctx.fillText(`破10分 ${step.frontGirlAfter10.name}`, curPillX + 27, bottomInfoY + 20);
     }
 
-    // 視角描述
-    ctx.fillStyle = '#A3E3DA';
-    ctx.font = '500 11px "Noto Sans TC", sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(step.viewNote, cardW + 10, bottomInfoY + 22);
+    // 視覺化精簡雷達視角圖（支援所有推同時呈現）
+    const radarsList =
+      step.allTargetGirlRadars && step.allTargetGirlRadars.length > 0
+        ? step.allTargetGirlRadars
+        : step.targetGirlRadar
+          ? [step.targetGirlRadar]
+          : [];
 
-    // 方案 B：觀眾面向球場看主推雷達橫樑
-    if (step.targetGirlRadar) {
-      const radar = step.targetGirlRadar;
-      const barY = bottomInfoY + 44;
-      const barW = cardW - 60;
-      drawRoundedRect(ctx, 70, barY, barW, 80, 8, 'rgba(14, 21, 38, 0.95)', 'rgba(255, 255, 255, 0.1)', 1);
+    if (radarsList.length > 0) {
+      const primaryRadar = radarsList[0];
+      const barX = 72;
+      const barY = bottomInfoY + 38;
+      const barW = cardW - 64;
+      const barH = 124;
+      drawRoundedRect(ctx, barX, barY, barW, barH, 10, 'rgba(11, 17, 32, 0.96)', 'rgba(255, 255, 255, 0.12)', 1);
 
-      // 看台面向球場三區分割條
+      // 看台面向球場三區極簡橫樑
       const colW = barW / 3;
-      drawRoundedRect(ctx, 70, barY, colW, 24, 6, 'rgba(56, 189, 248, 0.15)', undefined, 0);
-      drawRoundedRect(ctx, 70 + colW, barY, colW, 24, 6, 'rgba(52, 211, 153, 0.15)', undefined, 0);
-      drawRoundedRect(ctx, 70 + colW * 2, barY, colW, 24, 6, 'rgba(251, 191, 36, 0.15)', undefined, 0);
+      drawRoundedRect(ctx, barX, barY, colW, 20, 6, 'rgba(56, 189, 248, 0.14)', undefined, 0);
+      drawRoundedRect(ctx, barX + colW, barY, colW, 20, 6, 'rgba(52, 211, 153, 0.14)', undefined, 0);
+      drawRoundedRect(ctx, barX + colW * 2, barY, colW, 20, 6, 'rgba(251, 191, 36, 0.14)', undefined, 0);
 
-      ctx.fillStyle = '#7DD3FC';
-      ctx.font = 'bold 11px "Noto Sans TC", sans-serif';
+      ctx.font = 'bold 10px "Noto Sans TC", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('◀ 左手邊：2F C 區 (23→1號)', 70 + colW / 2, barY + 12);
-
+      ctx.fillStyle = '#7DD3FC';
+      ctx.fillText('◀ 2F C 區', barX + colW / 2, barY + 10);
       ctx.fillStyle = '#6EE7B7';
-      ctx.fillText('正中央：2F B 區 (23→1號)', 70 + colW * 1.5, barY + 12);
-
+      ctx.fillText('2F B 區', barX + colW * 1.5, barY + 10);
       ctx.fillStyle = '#FCD34D';
-      ctx.fillText('右手邊：2F A 區 (23→1號) ▶', 70 + colW * 2.5, barY + 12);
+      ctx.fillText('2F A 區 ▶', barX + colW * 2.5, barY + 10);
 
-      // 主推方位文字
-      ctx.textAlign = 'left';
+      // 雷達畫布座標參數
+      const padX = 28;
+      const plotW = barW - padX * 2;
+      const toCanvasX = (pct: number) => barX + padX + (pct / 100) * plotW;
+
+      const seatCanvasX = toCanvasX(primaryRadar.initial.seatXPercent);
+      const seatCanvasY = barY + barH - 18;
+
+      // 視線好拍扇形光錐
+      const coneHalfW = (16 / 100) * plotW;
+      const coneGrad = ctx.createLinearGradient(0, seatCanvasY, 0, barY + 22);
+      coneGrad.addColorStop(0, 'rgba(94, 203, 192, 0.25)');
+      coneGrad.addColorStop(1, 'rgba(94, 203, 192, 0.03)');
+      ctx.fillStyle = coneGrad;
+      ctx.beginPath();
+      ctx.moveTo(seatCanvasX, seatCanvasY);
+      ctx.lineTo(Math.max(barX + 6, seatCanvasX - coneHalfW), barY + 22);
+      ctx.lineTo(Math.min(barX + barW - 6, seatCanvasX + coneHalfW), barY + 22);
+      ctx.closePath();
+      ctx.fill();
+
+      // 繪製所有推的射線與精簡頭像節點
+      const palette = ['#F59E0B', '#F472B6', '#38BDF8', '#A78BFA'];
+      radarsList.forEach((r, idx) => {
+        const color = palette[idx % palette.length];
+        const initX = toCanvasX(r.initial.targetXPercent);
+        const afterX = toCanvasX(r.after10.targetXPercent);
+        const targetY = barY + 38 + (idx % 2) * 18;
+
+        // 開局虛線射線 + 小圓點
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = 0.45;
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(seatCanvasX, seatCanvasY);
+        ctx.lineTo(initX, targetY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(initX, targetY, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // 破 10 分主力實線射線
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = idx === 0 ? 2.4 : 1.8;
+        ctx.beginPath();
+        ctx.moveTo(seatCanvasX, seatCanvasY);
+        ctx.lineTo(afterX, targetY);
+        ctx.stroke();
+        ctx.restore();
+
+        // 破 10 分女孩精簡頭像 + 志願簡稱
+        const gImg = imageCache.get(`./images/avatars/${r.targetGirlId}.jpg`) || null;
+        drawCircularAvatar(ctx, gImg, r.targetGirlName, afterX, targetY, 11, color, 2);
+
+        const labelText = `${r.preferenceOrder || idx + 1}推${r.targetGirlName}`;
+        ctx.font = 'bold 10px "Noto Sans TC", sans-serif';
+        const labelW = Math.max(46, ctx.measureText(labelText).width + 10);
+        const labelX = Math.max(barX + 4, Math.min(barX + barW - labelW - 4, afterX - labelW / 2));
+        const labelY = targetY + 13;
+        drawRoundedRect(ctx, labelX, labelY, labelW, 15, 7, 'rgba(14, 21, 38, 0.92)', color, 1);
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(labelText, labelX + labelW / 2, labelY + 7.5);
+      });
+
+      // 底部座位圓點與精簡座標膠囊
       ctx.fillStyle = '#5ECBC0';
-      ctx.font = 'bold 12px "JetBrains Mono", sans-serif';
-      const p1Text = `0–10分: ${radar.initial.targetSeatLabel} (${radar.initial.offsetText})`;
-      ctx.fillText(p1Text, 85, barY + 44);
-
-      ctx.fillStyle = '#FBBF24';
-      const p2Text = `破10分: ${radar.after10.targetSeatLabel} (${radar.after10.offsetText})`;
-      ctx.fillText(p2Text, 85, barY + 64);
-
-      // 右側座位標記
-      ctx.textAlign = 'right';
+      ctx.beginPath();
+      ctx.arc(seatCanvasX, seatCanvasY, 4.5, 0, Math.PI * 2);
+      ctx.fill();
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = '900 12px "Noto Sans TC", sans-serif';
-      ctx.fillText(`▲ 座位：${radar.seatLabel}`, 70 + barW - 15, barY + 54);
+      ctx.beginPath();
+      ctx.arc(seatCanvasX, seatCanvasY, 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      const seatTag = `▲ ${primaryRadar.seatLabel}`;
+      ctx.font = '900 10px "Noto Sans TC", sans-serif';
+      const seatTagW = Math.max(66, ctx.measureText(seatTag).width + 14);
+      const seatTagX = Math.max(barX + 6, Math.min(barX + barW - seatTagW - 6, seatCanvasX - seatTagW / 2));
+      drawRoundedRect(ctx, seatTagX, seatCanvasY + 5, seatTagW, 16, 8, '#212047', '#5ECBC0', 1);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(seatTag, seatTagX + seatTagW / 2, seatCanvasY + 13);
     }
     ctx.restore();
 
