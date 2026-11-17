@@ -27,42 +27,9 @@ const PARTICIPANTS_STORAGE_KEY = 'ace_viva_plan_participants_v1';
 const MATCH_ID_STORAGE_KEY = 'ace_viva_selected_match_id_v1';
 
 const DEFAULT_PARTICIPANTS: Participant[] = [
-  { id: 'p-pinjie', name: '品潔', role: 'fan', targetGirlIds: ['ann'], priority: 1 },
-  {
-    id: 'p-qiuchiu',
-    name: '秋秋',
-    role: 'fan',
-    targetGirlIds: ['xuanxuan'],
-    setExceptions: [{ setKey: 'set1_4', preferredZone: 'A', targetGirlId: 'xuanxuan' }],
-    priority: 2,
-  },
-  {
-    id: 'p-charles',
-    name: '查理斯',
-    role: 'fan',
-    targetGirlIds: ['ann', 'yuri'],
-    setExceptions: [
-      { setKey: 'set2_5', preferredZone: 'A' },
-      { setKey: 'set1_4', preferredZones: ['A', 'C'] },
-    ],
-    priority: 3,
-  },
-  { id: 'p-hanhan', name: '翰翰', role: 'fan', targetGirlIds: ['yixuan'], priority: 4 },
-  { id: 'p-yaoshou', name: '姚售', role: 'fan', targetGirlIds: ['jungheejung'], priority: 5 },
-  {
-    id: 'p-keith',
-    name: 'keith',
-    role: 'fan',
-    targetGirlIds: ['yixuan', 'ann', 'nicole'],
-    priority: 6,
-  },
-  {
-    id: 'p-luopang',
-    name: '羅胖',
-    role: 'fan',
-    targetGirlIds: ['chayounghyun', 'jungheejung'],
-    priority: 7,
-  },
+  { id: 'p-k', name: 'K', role: 'fan', targetGirlIds: ['yixuan', 'ann', 'yipei'], priority: 1 },
+  { id: 'p-chu', name: 'Chu', role: 'fan', targetGirlIds: ['sinping', 'jungheejung'], priority: 2 },
+  { id: 'p-jay', name: 'Jay', role: 'fan', targetGirlIds: ['yixuan', 'mega', 'yipei'], priority: 3 },
 ];
 
 interface ErrorBoundaryProps {
@@ -156,8 +123,8 @@ export const MainApp: React.FC = () => {
         // ignore
       }
     }
-    // 預設給予 7 席週日實戰座位（包含 B3-20）
-    return parseSeatsInput('A20, A23, B8, B14, B20, C2, C4');
+    // 預設給予 3 席範例測試座位（B3-13、A3-20、C3-4）
+    return parseSeatsInput('B13, A20, C4');
   });
 
   // 3. 參與者名單
@@ -220,76 +187,14 @@ export const MainApp: React.FC = () => {
     localStorage.setItem(MATCH_ID_STORAGE_KEY, selectedMatchId);
   }, [selectedMatchId]);
 
-  // 載入 7 人實戰範例群組（品潔、秋秋、查理斯、翰翰、姚售、keith、羅胖 7 人配置）
+  // 載入範例測試資料（B3-13、A3-20、C3-4｜K、Chu、Jay 3 人配置）
   const handleLoadSundayCase = () => {
     if (!ACTIVE_STATION_ROTATION_SCHEDULES.some((m) => m.matchId === selectedMatchId)) {
       setSelectedMatchId(ACTIVE_STATION_ROTATION_SCHEDULES[0]?.matchId || '2026-11-21');
     }
-    // 手邊持有 7 席座位（包含新增之 B3-20）
-    const sundaySeats = parseSeatsInput('A20, A23, B8, B14, B20, C2, C4');
-    setHeldSeats(sundaySeats);
-
-    // 7 位成員與各自進階偏好
-    const sundayParticipants: Participant[] = [
-      {
-        id: 'p-pinjie',
-        name: '品潔',
-        role: 'fan',
-        targetGirlIds: ['ann'],
-        priority: 1,
-      },
-      {
-        id: 'p-qiuchiu',
-        name: '秋秋',
-        role: 'fan',
-        targetGirlIds: ['xuanxuan'],
-        setExceptions: [
-          { setKey: 'set1_4', preferredZone: 'A', targetGirlId: 'xuanxuan' },
-        ],
-        priority: 2,
-      },
-      {
-        id: 'p-charles',
-        name: '查理斯',
-        role: 'fan',
-        targetGirlIds: ['ann', 'yuri'],
-        setExceptions: [
-          { setKey: 'set2_5', preferredZone: 'A' },
-          { setKey: 'set1_4', preferredZones: ['A', 'C'] }, // 第四局希望在 A 區或 C 區
-        ],
-        priority: 3,
-      },
-      {
-        id: 'p-hanhan',
-        name: '翰翰',
-        role: 'fan',
-        targetGirlIds: ['yixuan'],
-        priority: 4,
-      },
-      {
-        id: 'p-yaoshou',
-        name: '姚售',
-        role: 'fan',
-        targetGirlIds: ['jungheejung'], // 需求是看鄭熙靜
-        priority: 5,
-      },
-      {
-        id: 'p-keith',
-        name: 'keith',
-        role: 'fan',
-        targetGirlIds: ['yixuan', 'ann', 'nicole'],
-        priority: 6,
-      },
-      {
-        id: 'p-luopang',
-        name: '羅胖',
-        role: 'fan',
-        targetGirlIds: ['chayounghyun', 'jungheejung'], // 前三局希望有兩局可以遇到車車跟熙靜
-        priority: 7,
-      },
-    ];
-
-    setParticipants(sundayParticipants);
+    const exampleSeats = parseSeatsInput('B13, A20, C4');
+    setHeldSeats(exampleSeats);
+    setParticipants(DEFAULT_PARTICIPANTS.map((p) => ({ ...p, targetGirlIds: [...p.targetGirlIds] })));
   };
 
   // 目前場次資料

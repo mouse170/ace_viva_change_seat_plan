@@ -4,6 +4,7 @@ import {
   type Participant,
   exportPlanConfigToString,
   parsePlanConfigFromString,
+  parseSeatsInput,
 } from '../utils/seatPlannerEngine';
 
 interface ConfigStringModalProps {
@@ -154,60 +155,19 @@ export const ConfigStringModal: React.FC<ConfigStringModalProps> = ({
   };
 
   const handleLoadOfficialSundayPreset = () => {
-    const config = {
-      version: 1,
-      name: '7 人實戰範例配置',
-      savedAt: new Date().toISOString(),
+    const presetSeats = parseSeatsInput('B13, A20, C4');
+    const presetParticipants: Participant[] = [
+      { id: 'p-k', name: 'K', role: 'fan', targetGirlIds: ['yixuan', 'ann', 'yipei'], priority: 1 },
+      { id: 'p-chu', name: 'Chu', role: 'fan', targetGirlIds: ['sinping', 'jungheejung'], priority: 2 },
+      { id: 'p-jay', name: 'Jay', role: 'fan', targetGirlIds: ['yixuan', 'mega', 'yipei'], priority: 3 },
+    ];
+    const jsonStr = exportPlanConfigToString(
       matchId,
-      heldSeats: [
-        { seatKey: 'A-20', zone: 'A', seatNumber: 20, row: 3, label: 'A 區 20 號' },
-        { seatKey: 'A-23', zone: 'A', seatNumber: 23, row: 3, label: 'A 區 23 號' },
-        { seatKey: 'B-8', zone: 'B', seatNumber: 8, row: 3, label: 'B 區 8 號' },
-        { seatKey: 'B-14', zone: 'B', seatNumber: 14, row: 3, label: 'B 區 14 號' },
-        { seatKey: 'B-20', zone: 'B', seatNumber: 20, row: 3, label: 'B 區 20 號' },
-        { seatKey: 'C-2', zone: 'C', seatNumber: 2, row: 3, label: 'C 區 2 號' },
-        { seatKey: 'C-4', zone: 'C', seatNumber: 4, row: 3, label: 'C 區 4 號' },
-      ],
-      participants: [
-        { id: 'p-pinjie', name: '品潔', role: 'fan', targetGirlIds: ['ann'], priority: 1 },
-        {
-          id: 'p-qiuchiu',
-          name: '秋秋',
-          role: 'fan',
-          targetGirlIds: ['xuanxuan'],
-          setExceptions: [{ setKey: 'set1_4', preferredZone: 'A', targetGirlId: 'xuanxuan' }],
-          priority: 2,
-        },
-        {
-          id: 'p-charles',
-          name: '查理斯',
-          role: 'fan',
-          targetGirlIds: ['ann', 'yuri'],
-          setExceptions: [
-            { setKey: 'set2_5', preferredZone: 'A' },
-            { setKey: 'set1_4', preferredZones: ['A', 'C'] },
-          ],
-          priority: 3,
-        },
-        { id: 'p-hanhan', name: '翰翰', role: 'fan', targetGirlIds: ['yixuan'], priority: 4 },
-        { id: 'p-yaoshou', name: '姚售', role: 'fan', targetGirlIds: ['jungheejung'], priority: 5 },
-        {
-          id: 'p-keith',
-          name: 'keith',
-          role: 'fan',
-          targetGirlIds: ['yixuan', 'ann', 'nicole'],
-          priority: 6,
-        },
-        {
-          id: 'p-luopang',
-          name: '羅胖',
-          role: 'fan',
-          targetGirlIds: ['chayounghyun', 'jungheejung'],
-          priority: 7,
-        },
-      ],
-    };
-    setEditorText(JSON.stringify(config, null, 2));
+      presetSeats,
+      presetParticipants,
+      '3 人範例測試配置（B3-13、A3-20、C3-4）'
+    );
+    setEditorText(jsonStr);
     setErrorMessage(null);
   };
 
@@ -251,9 +211,9 @@ export const ConfigStringModal: React.FC<ConfigStringModalProps> = ({
                 type="button"
                 onClick={handleLoadOfficialSundayPreset}
                 className="rounded-lg bg-[#5ECBC0]/20 px-3 py-1.5 font-bold text-[#212047] ring-1 ring-[#5ECBC0] hover:bg-[#5ECBC0]/30"
-                title="載入 11/08 最新 7 人配置（含姚售、查理斯 A/C 區、羅胖）"
+                title="載入 B3-13、A3-20、C3-4 與 K、Chu、Jay 範例測試配置"
               >
-                ★ 載入 11/08 週日實戰範本
+                ★ 載入 3 人範例測試範本
               </button>
               <button
                 type="button"
