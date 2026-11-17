@@ -365,6 +365,37 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                 </div>
               </div>
 
+              {/* 首推黃金區保底達成摘要橫幅 */}
+              {planResult.goldenSummary && planResult.goldenSummary.totalFanCount > 0 && (
+                <div
+                  className={`mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-xs ${
+                    planResult.goldenSummary.missingGoldenParticipantNames.length === 0
+                      ? 'border-emerald-300 bg-emerald-50/80 text-emerald-900'
+                      : 'border-amber-300 bg-amber-50/90 text-amber-950'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center gap-2 font-bold">
+                    <span
+                      className={`rounded-md px-2 py-0.5 text-[11px] font-black text-white ${
+                        planResult.goldenSummary.missingGoldenParticipantNames.length === 0
+                          ? 'bg-[#5BAE84]'
+                          : 'bg-amber-600'
+                      }`}
+                    >
+                      首推黃金區保底
+                    </span>
+                    <span>
+                      {planResult.goldenSummary.goldenAchievedCount} / {planResult.goldenSummary.totalFanCount} 位一般球迷達成（至少 1 局正前方直視首推女孩）
+                    </span>
+                  </div>
+                  {planResult.goldenSummary.missingGoldenParticipantNames.length > 0 && (
+                    <span className="font-bold text-rose-700">
+                      未達成名單：{planResult.goldenSummary.missingGoldenParticipantNames.join('、')}（個人總分已扣 25 分，建議補充該區座位或調整志願序）
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* 各局換位結果卡片清單 */}
               <div className="mt-6 space-y-6">
                 {displayedSets.map((setRes) => (
@@ -418,7 +449,7 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                                 <span className="text-xs font-bold text-[#212047]/60">
                                   朋友：{a.participantName}
                                 </span>
-                                <div className="flex items-baseline gap-2">
+                                <div className="flex flex-wrap items-baseline gap-1.5">
                                   <span className="text-base font-black text-[#212047]">
                                     {a.assignedSeat ? a.assignedSeat.label : '候補 / 無座位'}
                                   </span>
@@ -433,6 +464,11 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                                   >
                                     {a.rankBadge}
                                   </span>
+                                  {a.isPrimaryGoldenZone && (
+                                    <span className="rounded-md bg-[#E2B855]/25 px-1.5 py-0.2 text-[10px] font-black text-[#8A6100] ring-1 ring-[#E2B855]">
+                                      首推黃金區 · {a.goldenPeriodText}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -533,13 +569,30 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                     }}
                   />
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-xl font-black">
                         【{selectedItinerary.participant.name}】換位行程表
                       </h3>
-                      <span className="rounded-md bg-[#5BAE84] px-2 py-0.5 text-xs font-bold text-white">
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-xs font-bold text-white ${
+                          selectedItinerary.hasPrimaryGoldenGuarantee
+                            ? 'bg-[#5BAE84]'
+                            : 'bg-rose-600'
+                        }`}
+                      >
                         平均滿意度 {selectedItinerary.totalScoreAvg} 分
                       </span>
+                      {selectedItinerary.participant.role !== 'flex' && (
+                        selectedItinerary.hasPrimaryGoldenGuarantee ? (
+                          <span className="rounded-md bg-[#E2B855]/20 px-2 py-0.5 text-xs font-bold text-[#E2B855] ring-1 ring-[#E2B855]/50">
+                            首推黃金區：{selectedItinerary.primaryGoldenCount} 局
+                          </span>
+                        ) : (
+                          <span className="rounded-md bg-rose-500/20 px-2 py-0.5 text-xs font-bold text-rose-200 ring-1 ring-rose-400/60">
+                            首推黃金區未達成（扣 {selectedItinerary.goldenPenaltyPoints} 分）
+                          </span>
+                        )
+                      )}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/75">
                       <span>第一志願女孩：</span>
@@ -549,6 +602,11 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                       <span>·</span>
                       <span>{selectedItinerary.targetGirl.roleBadge}</span>
                     </div>
+                    {selectedItinerary.goldenPenaltyPoints > 0 && (
+                      <div className="mt-1.5 text-xs font-bold text-rose-300">
+                        扣分明細：原始各局均分 {selectedItinerary.rawScoreAvg} 分 - 未達首推黃金區重罰 {selectedItinerary.goldenPenaltyPoints} 分 = {selectedItinerary.totalScoreAvg} 分
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -627,7 +685,7 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                           <span className="block text-[11px] font-bold text-[#212047]/60">
                             本局就座席位：
                           </span>
-                          <div className="mt-1 flex items-baseline gap-2">
+                          <div className="mt-1 flex flex-wrap items-baseline gap-2">
                             <span className="text-2xl font-black text-[#212047]">
                               {step.assignedSeat ? step.assignedSeat.label : '候補 / 無席'}
                             </span>
@@ -640,6 +698,11 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                             >
                               {step.rankBadge}
                             </span>
+                            {step.isPrimaryGoldenZone && (
+                              <span className="rounded-md bg-[#E2B855]/25 px-2 py-0.5 text-xs font-black text-[#8A6100] ring-1 ring-[#E2B855]">
+                                首推黃金區 · {step.goldenPeriodText}
+                              </span>
+                            )}
                           </div>
                         </div>
 

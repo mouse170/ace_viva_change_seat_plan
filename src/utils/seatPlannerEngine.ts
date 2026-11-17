@@ -99,6 +99,10 @@ export interface ParticipantSetAssignment {
   prevSeatLabel?: string;
   matchedExceptionNote?: string;
   preferenceOrder?: number; // 喜好順位：1 = 首推, 2 = 二推, 3 = 三推
+  isPrimaryGoldenZone?: boolean; // 是否命中首推女孩之正前方直視黃金區
+  isPrimaryGoldenAfter10?: boolean; // 首推是否於破 10 分主力時段正前方直視
+  isPrimaryGoldenInit?: boolean; // 首推是否於開局時段正前方直視
+  goldenPeriodText?: string; // 黃金區命中時段說明
 }
 
 export interface SetPlanResult {
@@ -110,11 +114,19 @@ export interface SetPlanResult {
   unassignedParticipants: Participant[];
 }
 
+export interface MatchGoldenSummary {
+  totalFanCount: number;
+  goldenAchievedCount: number;
+  missingGoldenParticipantIds: string[];
+  missingGoldenParticipantNames: string[];
+}
+
 export interface FullMatchPlanResult {
   match: MatchStationSchedule;
   sets: SetPlanResult[];
   participants: Participant[];
   heldSeats: HeldSeat[];
+  goldenSummary?: MatchGoldenSummary;
 }
 
 export interface PhaseRadarDetail {
@@ -161,6 +173,8 @@ export interface IndividualItineraryStep {
   matchedExceptionNote?: string;
   targetGirlRadar?: TargetGirlRadarPill;
   preferenceOrder?: number; // 喜好順位：1 = 首推, 2 = 二推, 3 = 三推
+  isPrimaryGoldenZone?: boolean;
+  goldenPeriodText?: string;
 }
 
 export interface IndividualPlanItinerary {
@@ -168,7 +182,11 @@ export interface IndividualPlanItinerary {
   targetGirl: AceVivaMember;
   steps: IndividualItineraryStep[];
   hasAnyMove: boolean;
+  rawScoreAvg: number;
   totalScoreAvg: number;
+  primaryGoldenCount: number;
+  hasPrimaryGoldenGuarantee: boolean;
+  goldenPenaltyPoints: number;
 }
 
 /**
@@ -415,7 +433,8 @@ function evaluateSingleGirlSeat(
 
   const weightedDistance = resInit.distance * 0.35 + resAfter.distance * 0.65;
   let baseScore = Math.max(5, 100 - weightedDistance * 3.5);
-  if (resAfter.isDirectFront) baseScore += 20;
+  // 破 10 分主力時段（佔 60% 時間）正前方直視加分高於開局時段
+  if (resAfter.isDirectFront) baseScore += 24;
   if (resInit.isDirectFront) baseScore += 10;
 
   return {
@@ -459,6 +478,10 @@ function evaluateParticipantSeatSatisfaction(
   rankBadge: string;
   matchedExceptionNote?: string;
   preferenceOrder?: number;
+  isPrimaryGoldenZone: boolean;
+  isPrimaryGoldenAfter10: boolean;
+  isPrimaryGoldenInit: boolean;
+  goldenPeriodText?: string;
 } {
   const memberMap = new Map(MEMBERS.map((m) => [m.id, m]));
 
@@ -491,6 +514,9 @@ function evaluateParticipantSeatSatisfaction(
       rankLevel: 'fair',
       rankBadge: '配合補位席',
       matchedExceptionNote: '彈性配合大家需求補位',
+      isPrimaryGoldenZone: false,
+      isPrimaryGoldenAfter10: false,
+      isPrimaryGoldenInit: false,
     };
   }
 
@@ -587,6 +613,24 @@ function evaluateParticipantSeatSatisfaction(
     rankBadge = `${rankBadge} (${bestPreferenceOrder}推)`;
   }
 
+  // 判定是否達成「首推（第一志願）正前方直視黃金區」
+  const primaryGirlId = effectiveGirlIds[0];
+  const primaryEval =
+    bestGirlId === primaryGirlId
+      ? bestEvalResult
+      : evaluateSingleGirlSeat(seat, primaryGirlId, setStation);
+  const isPrimaryGoldenAfter10 = primaryEval.isDirectFrontAfter;
+  const isPrimaryGoldenInit = primaryEval.isDirectFrontInit;
+  const isPrimaryGoldenZone = isPrimaryGoldenAfter10 || isPrimaryGoldenInit;
+  let goldenPeriodText: string | undefined = undefined;
+  if (isPrimaryGoldenAfter10 && isPrimaryGoldenInit) {
+    goldenPeriodText = '全場正前方';
+  } else if (isPrimaryGoldenAfter10) {
+    goldenPeriodText = '破10分正前方';
+  } else if (isPrimaryGoldenInit) {
+    goldenPeriodText = '開局正前方';
+  }
+
   return {
     satisfactionScore: Math.round(bestScore),
     bestTargetGirlId: bestGirlId,
@@ -601,6 +645,10 @@ function evaluateParticipantSeatSatisfaction(
     rankBadge,
     matchedExceptionNote: exceptionNote,
     preferenceOrder: bestPreferenceOrder,
+    isPrimaryGoldenZone,
+    isPrimaryGoldenAfter10,
+    isPrimaryGoldenInit,
+    goldenPeriodText,
   };
 }
 
@@ -618,7 +666,9 @@ export function solveSetPlan(
   heldSeats: HeldSeat[],
   participants: Participant[],
   prevSetAssignments?: Map<string, HeldSeat>,
-  historicalScores?: Map<string, number>
+  historicalScores?: Map<string, number>,
+  goldenCountMap?: Map<string, number>,
+  goldenScarcityMap?: Map<string, number>
 ): SetPlanResult {
   const memberMap = new Map(MEMBERS.map((m) => [m.id, m]));
   const safeHeldSeats = Array.isArray(heldSeats) ? heldSeats : [];
@@ -694,9 +744,26 @@ export function solveSetPlan(
 
     const candidates: SeatCandidate[] = heldSeats.map((seat, seatIndex) => {
       const evaluation = evaluateParticipantSeatSatisfaction(seat, p, setStation);
+
+      // 邊際遞減防壟斷 + 跨局稀缺預判加成
+      let goldenAdjustment = 0;
+      if (p.role !== 'flex' && evaluation.isPrimaryGoldenZone) {
+        const currentGoldenCount = goldenCountMap?.get(p.id) ?? 0;
+        const scarcity = goldenScarcityMap?.get(p.id) ?? 3;
+        if (currentGoldenCount === 0) {
+          // 尚未達成首推黃金區者給予搶位保底加成；若全場只有 1 局有機會拿到，額外重加稀缺權重
+          goldenAdjustment = 35 + (scarcity === 1 ? 45 : scarcity === 2 ? 15 : 0);
+        } else if (currentGoldenCount === 1) {
+          // 已拿到 1 局者權重下降，優先禮讓給還沒拿過的隊友
+          goldenAdjustment = -28;
+        } else {
+          goldenAdjustment = -45;
+        }
+      }
+
       return {
         seatIndex,
-        score: evaluation.satisfactionScore + rolePriorityBase + historicalBonus,
+        score: evaluation.satisfactionScore + rolePriorityBase + historicalBonus + goldenAdjustment,
         rawEval: evaluation,
       };
     });
@@ -824,6 +891,10 @@ export function solveSetPlan(
         prevSeatLabel,
         matchedExceptionNote: evaluation.matchedExceptionNote,
         preferenceOrder: evaluation.preferenceOrder,
+        isPrimaryGoldenZone: evaluation.isPrimaryGoldenZone,
+        isPrimaryGoldenAfter10: evaluation.isPrimaryGoldenAfter10,
+        isPrimaryGoldenInit: evaluation.isPrimaryGoldenInit,
+        goldenPeriodText: evaluation.goldenPeriodText,
       });
     } else {
       unassignedParticipants.push(p);
@@ -862,22 +933,137 @@ export function solveSetPlan(
   };
 }
 
+const GOLDEN_MISS_PENALTY = 25;
+
 /**
- * 執行全場比賽換位排程運算，納入跨局最大公約數累計平衡機制
+ * 重算各局之間的是否需要換位標記（needsMoveFromPrevSet / prevSeatLabel）
+ */
+function refreshMoveFlags(setsResults: SetPlanResult[]): void {
+  let prevMap = new Map<string, HeldSeat>();
+  for (const setRes of setsResults) {
+    const nextMap = new Map<string, HeldSeat>();
+    for (const a of setRes.assignments) {
+      if (a.assignedSeat) {
+        nextMap.set(a.participantId, a.assignedSeat);
+        const prevSeat = prevMap.get(a.participantId);
+        if (prevSeat && prevSeat.key !== a.assignedSeat.key) {
+          a.needsMoveFromPrevSet = true;
+          a.prevSeatLabel = prevSeat.label;
+        } else {
+          a.needsMoveFromPrevSet = false;
+          a.prevSeatLabel = undefined;
+        }
+      } else {
+        a.needsMoveFromPrevSet = false;
+        a.prevSeatLabel = undefined;
+      }
+    }
+    prevMap = nextMap;
+  }
+}
+
+/**
+ * 評估全場聯合最佳化目標函數：
+ * 1. 優先極小化「一般球迷 0 局首推黃金區人數」（保底最多人至少 1 局）
+ * 2. 其次最大化全隊一般球迷最低個人最終得分（Max-Min 公平性）
+ * 3. 最後最大化全隊一般球迷最終得分總和
+ */
+function evaluateFullMatchObjective(
+  setsResults: SetPlanResult[],
+  participants: Participant[]
+): {
+  missingGoldenCount: number;
+  minFinalScore: number;
+  totalFinalScore: number;
+} {
+  const fanParticipants = participants.filter((p) => p.role !== 'flex');
+  if (fanParticipants.length === 0) {
+    return { missingGoldenCount: 0, minFinalScore: 100, totalFinalScore: 100 };
+  }
+
+  let missingGoldenCount = 0;
+  let minFinalScore = Infinity;
+  let totalFinalScore = 0;
+
+  for (const p of fanParticipants) {
+    let goldenCount = 0;
+    let scoreSum = 0;
+    let setCount = 0;
+
+    for (const s of setsResults) {
+      const a = s.assignments.find((item) => item.participantId === p.id);
+      if (a) {
+        setCount++;
+        scoreSum += a.score;
+        if (a.isPrimaryGoldenZone) goldenCount++;
+      }
+    }
+
+    const rawAvg = setCount > 0 ? scoreSum / setCount : 0;
+    const hasGolden = goldenCount > 0;
+    if (!hasGolden) missingGoldenCount++;
+
+    const finalScore = Math.max(0, Math.round(rawAvg) - (hasGolden ? 0 : GOLDEN_MISS_PENALTY));
+    if (finalScore < minFinalScore) minFinalScore = finalScore;
+    totalFinalScore += finalScore;
+  }
+
+  return {
+    missingGoldenCount,
+    minFinalScore: minFinalScore === Infinity ? 0 : minFinalScore,
+    totalFinalScore,
+  };
+}
+
+function isObjectiveBetter(
+  candidate: { missingGoldenCount: number; minFinalScore: number; totalFinalScore: number },
+  current: { missingGoldenCount: number; minFinalScore: number; totalFinalScore: number }
+): boolean {
+  if (candidate.missingGoldenCount !== current.missingGoldenCount) {
+    return candidate.missingGoldenCount < current.missingGoldenCount;
+  }
+  if (candidate.minFinalScore !== current.minFinalScore) {
+    return candidate.minFinalScore > current.minFinalScore;
+  }
+  return candidate.totalFinalScore > current.totalFinalScore + 2;
+}
+
+/**
+ * 執行全場比賽換位排程運算：
+ * 1. 跨局預判稀缺度（Scarcity Lookahead）
+ * 2. 邊際遞減防壟斷（已拿到 1 局首推黃金區者自動禮讓給未達標隊友）
+ * 3. 跨局聯合 2-opt 回溯調度，盡力確保每人至少 1 局首推黃金區
  */
 export function solveFullMatchPlan(
   match: MatchStationSchedule,
   heldSeats: HeldSeat[],
   participants: Participant[]
 ): FullMatchPlanResult {
+  const memberMap = new Map(MEMBERS.map((m) => [m.id, m]));
   const safeHeldSeats = Array.isArray(heldSeats) ? heldSeats : [];
   const safeParticipants = (Array.isArray(participants) ? participants : []).map((p, idx) =>
     sanitizeParticipant(p, idx)
   );
 
+  // Step 1: 掃描全場 3 個階段，計算每位一般球迷擁有「首推黃金區座位」的局數（稀缺度）
+  const goldenScarcityMap = new Map<string, number>();
+  for (const p of safeParticipants) {
+    if (p.role === 'flex') continue;
+    let availableGoldenSets = 0;
+    for (const setStation of match.sets) {
+      const hasAnyGoldenSeat = safeHeldSeats.some(
+        (seat) => evaluateParticipantSeatSatisfaction(seat, p, setStation).isPrimaryGoldenZone
+      );
+      if (hasAnyGoldenSeat) availableGoldenSets++;
+    }
+    goldenScarcityMap.set(p.id, availableGoldenSets);
+  }
+
+  // Step 2: 依序排程各局，動態累積黃金區取得次數以啟動邊際遞減防壟斷
   const setsResults: SetPlanResult[] = [];
   let prevAssignmentsMap: Map<string, HeldSeat> | undefined = undefined;
   const cumulativeScoresMap = new Map<string, number>();
+  const goldenCountMap = new Map<string, number>();
 
   for (const setStation of match.sets) {
     const setResult = solveSetPlan(
@@ -885,7 +1071,9 @@ export function solveFullMatchPlan(
       safeHeldSeats,
       safeParticipants,
       prevAssignmentsMap,
-      cumulativeScoresMap
+      cumulativeScoresMap,
+      goldenCountMap,
+      goldenScarcityMap
     );
     setsResults.push(setResult);
 
@@ -895,7 +1083,105 @@ export function solveFullMatchPlan(
         prevAssignmentsMap.set(a.participantId, a.assignedSeat);
         const curScore = cumulativeScoresMap.get(a.participantId) || 0;
         cumulativeScoresMap.set(a.participantId, curScore + a.score);
+        if (a.isPrimaryGoldenZone) {
+          goldenCountMap.set(a.participantId, (goldenCountMap.get(a.participantId) || 0) + 1);
+        }
       }
+    }
+  }
+
+  // Step 3: 跨局聯合調度（回溯對調各局內座位，改善全場 0 局達標人數與最低個人分）
+  const buildAssignmentFromSeat = (
+    p: Participant,
+    seat: HeldSeat,
+    setStation: MatchStationSchedule['sets'][number]
+  ): ParticipantSetAssignment => {
+    const evaluation = evaluateParticipantSeatSatisfaction(seat, p, setStation);
+    const targetGirl = memberMap.get(evaluation.bestTargetGirlId) || MEMBERS[0];
+    return {
+      participantId: p.id,
+      participantName: p.name,
+      targetGirlId: evaluation.bestTargetGirlId,
+      targetGirl,
+      isFlexRole: p.role === 'flex',
+      assignedSeat: seat,
+      score: evaluation.satisfactionScore,
+      rankLevel: evaluation.rankLevel,
+      rankBadge: evaluation.rankBadge,
+      distanceInit: evaluation.distanceInit,
+      distanceAfter10: evaluation.distanceAfter10,
+      directionInitText: evaluation.directionInitText,
+      directionAfter10Text: evaluation.directionAfter10Text,
+      frontGirlInit: evaluation.frontGirlInit,
+      frontGirlAfter10: evaluation.frontGirlAfter10,
+      viewNote: evaluation.viewNote,
+      needsMoveFromPrevSet: false,
+      matchedExceptionNote: evaluation.matchedExceptionNote,
+      preferenceOrder: evaluation.preferenceOrder,
+      isPrimaryGoldenZone: evaluation.isPrimaryGoldenZone,
+      isPrimaryGoldenAfter10: evaluation.isPrimaryGoldenAfter10,
+      isPrimaryGoldenInit: evaluation.isPrimaryGoldenInit,
+      goldenPeriodText: evaluation.goldenPeriodText,
+    };
+  };
+
+  let curObjective = evaluateFullMatchObjective(setsResults, safeParticipants);
+  let refined = true;
+  let round = 0;
+
+  while (refined && round < 20) {
+    refined = false;
+    round++;
+
+    for (let sIdx = 0; sIdx < setsResults.length; sIdx++) {
+      const setRes = setsResults[sIdx];
+      const setStation = match.sets[sIdx];
+      if (!setStation) continue;
+
+      const assignList = setRes.assignments;
+      for (let i = 0; i < assignList.length; i++) {
+        for (let j = i + 1; j < assignList.length; j++) {
+          const a1 = assignList[i];
+          const a2 = assignList[j];
+          if (!a1.assignedSeat || !a2.assignedSeat) continue;
+
+          const p1 = safeParticipants.find((p) => p.id === a1.participantId);
+          const p2 = safeParticipants.find((p) => p.id === a2.participantId);
+          if (!p1 || !p2) continue;
+
+          const swapped1 = buildAssignmentFromSeat(p1, a2.assignedSeat, setStation);
+          const swapped2 = buildAssignmentFromSeat(p2, a1.assignedSeat, setStation);
+
+          assignList[i] = swapped1;
+          assignList[j] = swapped2;
+
+          const nextObjective = evaluateFullMatchObjective(setsResults, safeParticipants);
+          if (isObjectiveBetter(nextObjective, curObjective)) {
+            curObjective = nextObjective;
+            refined = true;
+          } else {
+            assignList[i] = a1;
+            assignList[j] = a2;
+          }
+        }
+      }
+    }
+  }
+
+  refreshMoveFlags(setsResults);
+
+  // Step 4: 彙整全隊首推黃金區保底摘要
+  const fanParticipants = safeParticipants.filter((p) => p.role !== 'flex');
+  const missingGoldenParticipantIds: string[] = [];
+  const missingGoldenParticipantNames: string[] = [];
+
+  for (const p of fanParticipants) {
+    const hasGolden = setsResults.some((s) =>
+      s.assignments.some((a) => a.participantId === p.id && a.isPrimaryGoldenZone)
+    );
+    if (!hasGolden) {
+      missingGoldenParticipantIds.push(p.id);
+      missingGoldenParticipantNames.push(p.name);
     }
   }
 
@@ -904,6 +1190,12 @@ export function solveFullMatchPlan(
     sets: setsResults,
     participants: safeParticipants,
     heldSeats: safeHeldSeats,
+    goldenSummary: {
+      totalFanCount: fanParticipants.length,
+      goldenAchievedCount: fanParticipants.length - missingGoldenParticipantIds.length,
+      missingGoldenParticipantIds,
+      missingGoldenParticipantNames,
+    },
   };
 }
 
@@ -924,6 +1216,7 @@ export function getIndividualPlanItinerary(
   const steps: IndividualItineraryStep[] = [];
   let scoreSum = 0;
   let hasAnyMove = false;
+  let primaryGoldenCount = 0;
 
   for (const setRes of planResult.sets) {
     const assignment = setRes.assignments.find((a) => a.participantId === participantId);
@@ -931,6 +1224,7 @@ export function getIndividualPlanItinerary(
       if (assignment.needsMoveFromPrevSet) hasAnyMove = true;
       scoreSum += assignment.score;
       targetGirl = assignment.targetGirl;
+      if (assignment.isPrimaryGoldenZone) primaryGoldenCount++;
 
       const setStation = planResult.match.sets.find((s) => s.setKey === setRes.setKey);
       const targetGirlRadar = setStation && assignment.assignedSeat
@@ -957,16 +1251,28 @@ export function getIndividualPlanItinerary(
         matchedExceptionNote: assignment.matchedExceptionNote,
         targetGirlRadar,
         preferenceOrder: assignment.preferenceOrder,
+        isPrimaryGoldenZone: assignment.isPrimaryGoldenZone,
+        goldenPeriodText: assignment.goldenPeriodText,
       });
     }
   }
+
+  const rawScoreAvg = steps.length > 0 ? Math.round(scoreSum / steps.length) : 0;
+  const hasPrimaryGoldenGuarantee =
+    participant.role === 'flex' || primaryGoldenCount > 0;
+  const goldenPenaltyPoints = hasPrimaryGoldenGuarantee ? 0 : GOLDEN_MISS_PENALTY;
+  const totalScoreAvg = Math.max(0, rawScoreAvg - goldenPenaltyPoints);
 
   return {
     participant,
     targetGirl,
     steps,
     hasAnyMove,
-    totalScoreAvg: steps.length > 0 ? Math.round(scoreSum / steps.length) : 0,
+    rawScoreAvg,
+    totalScoreAvg,
+    primaryGoldenCount,
+    hasPrimaryGoldenGuarantee,
+    goldenPenaltyPoints,
   };
 }
 
