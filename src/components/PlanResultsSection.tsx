@@ -8,17 +8,35 @@ import {
 } from '../utils/seatPlannerEngine';
 import { type AceVivaMember } from '../data/members';
 
+const RADAR_PALETTE = [
+  { solid: '#F59E0B', text: 'text-[#FBBF24]', ring: 'ring-[#F59E0B]', bg: 'bg-[#F59E0B]' },
+  { solid: '#F472B6', text: 'text-pink-300', ring: 'ring-pink-400', bg: 'bg-pink-400' },
+  { solid: '#38BDF8', text: 'text-sky-300', ring: 'ring-sky-400', bg: 'bg-sky-400' },
+  { solid: '#A78BFA', text: 'text-violet-300', ring: 'ring-violet-400', bg: 'bg-violet-400' },
+];
+
 /**
- * 觀眾面向球場視角看主推女孩雷達圖（依據真實球場看台視角與官方圖卡風格）
+ * 觀眾面向球場視角看主推及所有推女孩雷達圖（依據真實球場看台視角與官方圖卡風格）
  */
 const VisualSeatRadarCard: React.FC<{
   radar: TargetGirlRadarPill;
+  allRadars?: TargetGirlRadarPill[];
   frontGirlInit: AceVivaMember | null;
   frontGirlAfter10: AceVivaMember | null;
-}> = ({ radar, frontGirlInit, frontGirlAfter10 }) => {
-  const seatX = radar.initial.seatXPercent;
-  const initX = radar.initial.targetXPercent;
-  const afterX = radar.after10.targetXPercent;
+}> = ({ radar, allRadars, frontGirlInit, frontGirlAfter10 }) => {
+  const radarsList = allRadars && allRadars.length > 0 ? allRadars : [radar];
+  const hasMultipleTargets = radarsList.length > 1;
+  const [focusedGirlId, setFocusedGirlId] = useState<string | 'ALL'>('ALL');
+
+  const activeSingleRadar =
+    focusedGirlId === 'ALL'
+      ? radar
+      : radarsList.find((r) => r.targetGirlId === focusedGirlId) || radar;
+
+  const isMultiCanvas = hasMultipleTargets && focusedGirlId === 'ALL';
+  const seatX = activeSingleRadar.initial.seatXPercent;
+  const initX = activeSingleRadar.initial.targetXPercent;
+  const afterX = activeSingleRadar.after10.targetXPercent;
 
   return (
     <div className="mt-3.5 overflow-hidden rounded-2xl border border-[#212047]/20 bg-[#111A2E] text-white shadow-md">
@@ -29,7 +47,9 @@ const VisualSeatRadarCard: React.FC<{
             ★
           </span>
           <span className="text-xs font-black text-white">
-            {radar.targetGirlName} 在 2F {radar.targetGirlZone} 區
+            {isMultiCanvas
+              ? `所有推全方位雷達（${radarsList.length} 位）`
+              : `${activeSingleRadar.targetGirlName} 在 2F ${activeSingleRadar.targetGirlZone} 區`}
           </span>
           <span className="text-[10px] font-medium text-white/60">
             （面向球場視角雷達圖）
@@ -68,6 +88,47 @@ const VisualSeatRadarCard: React.FC<{
         </div>
       </div>
 
+      {/* 多推切換列：支援一次檢視所有推或單獨聚焦某一位 */}
+      {hasMultipleTargets && (
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-white/10 bg-[#131D33] px-3.5 py-2">
+          <span className="mr-1 text-[10px] font-bold text-white/60">雷達顯示：</span>
+          <button
+            type="button"
+            onClick={() => setFocusedGirlId('ALL')}
+            className={`rounded-full px-2.5 py-0.5 text-[10px] font-black transition-all ${
+              focusedGirlId === 'ALL'
+                ? 'bg-[#5ECBC0] text-[#111A2E] shadow-xs'
+                : 'bg-white/10 text-white/75 hover:bg-white/20'
+            }`}
+          >
+            全部推 ({radarsList.length})
+          </button>
+          {radarsList.map((item, idx) => {
+            const pal = RADAR_PALETTE[idx % RADAR_PALETTE.length];
+            const isSelected = focusedGirlId === item.targetGirlId;
+            return (
+              <button
+                key={item.targetGirlId}
+                type="button"
+                onClick={() =>
+                  setFocusedGirlId(isSelected ? 'ALL' : item.targetGirlId)
+                }
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold transition-all ${
+                  isSelected
+                    ? `bg-white text-[#111A2E] ring-2 ${pal.ring}`
+                    : 'bg-white/10 text-white/85 hover:bg-white/20'
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${pal.bg}`} />
+                <span>
+                  {item.preferenceOrder || idx + 1}推 {item.targetGirlName} ({item.targetGirlZone}區)
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* 看台面向球場三區橫樑：左 C 區 (23->1) · 中 B 區 (23->1) · 右 A 區 (23->1) */}
       <div className="grid grid-cols-3 border-b border-white/10 bg-[#0E1526] text-center text-[10px] font-black">
         <div className="border-r border-white/5 py-1.5 text-sky-300">
@@ -83,7 +144,11 @@ const VisualSeatRadarCard: React.FC<{
 
       {/* 視覺視角畫布（SVG 射線雷達） */}
       <div className="relative px-3 py-3">
-        <svg viewBox="0 0 100 80" className="h-36 w-full overflow-visible" preserveAspectRatio="none">
+        <svg
+          viewBox="0 0 100 80"
+          className={`${isMultiCanvas ? 'h-44' : 'h-36'} w-full overflow-visible`}
+          preserveAspectRatio="none"
+        >
           <defs>
             {/* 視線扇形漸層 */}
             <linearGradient id={`coneGrad-${radar.seatLabel}`} x1="0%" y1="100%" x2="0%" y2="0%">
@@ -98,52 +163,117 @@ const VisualSeatRadarCard: React.FC<{
             fill={`url(#coneGrad-${radar.seatLabel})`}
           />
 
-          {/* 開局 0-10 分射線（青綠色虛線） */}
-          <line
-            x1={`${seatX}%`}
-            y1="70%"
-            x2={`${initX}%`}
-            y2="22%"
-            stroke="#5ECBC0"
-            strokeWidth="1.5"
-            strokeDasharray="3 2"
-          />
-
-          {/* 破 10 分決勝射線（金黃色實線） */}
-          <line
-            x1={`${seatX}%`}
-            y1="70%"
-            x2={`${afterX}%`}
-            y2="22%"
-            stroke="#F59E0B"
-            strokeWidth="2.2"
-          />
+          {isMultiCanvas ? (
+            <>
+              {/* 多推同時繪製：每推以專屬顏色標示破 10 分主力射線與開局淡色虛線 */}
+              {radarsList.map((item, idx) => {
+                const pal = RADAR_PALETTE[idx % RADAR_PALETTE.length];
+                const yTarget = 16 + idx * 14;
+                return (
+                  <g key={item.targetGirlId}>
+                    <line
+                      x1={`${seatX}%`}
+                      y1="70%"
+                      x2={`${item.initial.targetXPercent}%`}
+                      y2={`${yTarget}%`}
+                      stroke={pal.solid}
+                      strokeOpacity="0.45"
+                      strokeWidth="1.1"
+                      strokeDasharray="2.5 2"
+                    />
+                    <line
+                      x1={`${seatX}%`}
+                      y1="70%"
+                      x2={`${item.after10.targetXPercent}%`}
+                      y2={`${yTarget}%`}
+                      stroke={pal.solid}
+                      strokeWidth={idx === 0 ? '2.2' : '1.7'}
+                    />
+                  </g>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              {/* 單推雙時段精細射線：開局虛線 + 破 10 分實線 */}
+              <line
+                x1={`${seatX}%`}
+                y1="70%"
+                x2={`${initX}%`}
+                y2="22%"
+                stroke="#5ECBC0"
+                strokeWidth="1.5"
+                strokeDasharray="3 2"
+              />
+              <line
+                x1={`${seatX}%`}
+                y1="70%"
+                x2={`${afterX}%`}
+                y2="22%"
+                stroke="#F59E0B"
+                strokeWidth="2.2"
+              />
+            </>
+          )}
 
           {/* 座位基底光暈 */}
           <circle cx={`${seatX}%`} cy="70%" r="3" fill="#5ECBC0" opacity="0.8" />
           <circle cx={`${seatX}%`} cy="70%" r="1.5" fill="#FFFFFF" />
         </svg>
 
-        {/* 絕對定位的女孩站位標籤與頭像 */}
-        {/* 開局 0-10 分女孩站位標籤 */}
-        <div
-          className="absolute top-2.5 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[#111A2E]/90 px-2 py-0.5 text-[10px] font-bold text-[#5ECBC0] ring-1 ring-[#5ECBC0]/70 shadow-xs"
-          style={{ left: `${initX}%` }}
-        >
-          <span className="h-2 w-2 rounded-full bg-[#5ECBC0] ring-2 ring-white/40" />
-          <span>0-10分: {radar.initial.targetSeatLabel}</span>
-          <span className="text-[9px] text-white/80">({radar.initial.offsetText})</span>
-        </div>
+        {/* 絕對定位的女孩站位標籤 */}
+        {isMultiCanvas ? (
+          <>
+            {radarsList.map((item, idx) => {
+              const pal = RADAR_PALETTE[idx % RADAR_PALETTE.length];
+              const topRem = 0.4 + idx * 1.65;
+              return (
+                <button
+                  key={item.targetGirlId}
+                  type="button"
+                  onClick={() => setFocusedGirlId(item.targetGirlId)}
+                  className={`absolute -translate-x-1/2 flex items-center gap-1 rounded-full bg-[#111A2E]/95 px-2 py-0.5 text-[10px] font-black ${pal.text} ring-1 ${pal.ring} shadow-sm hover:scale-105 transition-transform`}
+                  style={{ left: `${item.after10.targetXPercent}%`, top: `${topRem}rem` }}
+                  title={`點擊聚焦 ${item.targetGirlName} 雙時段射線`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${pal.bg}`} />
+                  <span>
+                    {item.preferenceOrder || idx + 1}推 {item.targetGirlName} · {item.after10.targetSeatLabel}
+                  </span>
+                  <span className="text-[9px] text-white/85">
+                    ({item.after10.offsetText})
+                  </span>
+                </button>
+              );
+            })}
+          </>
+        ) : (
+          <>
+            {/* 開局 0-10 分女孩站位標籤 */}
+            <div
+              className="absolute top-2.5 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[#111A2E]/90 px-2 py-0.5 text-[10px] font-bold text-[#5ECBC0] ring-1 ring-[#5ECBC0]/70 shadow-xs"
+              style={{ left: `${initX}%` }}
+            >
+              <span className="h-2 w-2 rounded-full bg-[#5ECBC0] ring-2 ring-white/40" />
+              <span>0-10分: {activeSingleRadar.initial.targetSeatLabel}</span>
+              <span className="text-[9px] text-white/80">
+                ({activeSingleRadar.initial.offsetText})
+              </span>
+            </div>
 
-        {/* 破 10 分女孩站位標籤 */}
-        <div
-          className="absolute top-7 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[#111A2E]/90 px-2 py-0.5 text-[10px] font-black text-[#FBBF24] ring-1.5 ring-[#F59E0B] shadow-sm"
-          style={{ left: `${afterX}%` }}
-        >
-          <span className="h-2 w-2 rounded-full bg-[#F59E0B] ring-2 ring-white/60 animate-pulse" />
-          <span>破10分: {radar.after10.targetSeatLabel}</span>
-          <span className="text-[9px] text-white/90">({radar.after10.offsetText})</span>
-        </div>
+            {/* 破 10 分女孩站位標籤 */}
+            <div
+              className="absolute top-7 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[#111A2E]/90 px-2 py-0.5 text-[10px] font-black text-[#FBBF24] ring-1.5 ring-[#F59E0B] shadow-sm"
+              style={{ left: `${afterX}%` }}
+            >
+              <span className="h-2 w-2 rounded-full bg-[#F59E0B] ring-2 ring-white/60 animate-pulse" />
+              <span>破10分: {activeSingleRadar.after10.targetSeatLabel}</span>
+              <span className="text-[9px] text-white/90">
+                ({activeSingleRadar.after10.offsetText})
+              </span>
+            </div>
+          </>
+        )}
 
         {/* 底部座位膠囊 */}
         <div
@@ -154,17 +284,95 @@ const VisualSeatRadarCard: React.FC<{
         </div>
       </div>
 
+      {/* 所有推相對位置結構化明細表（多推時顯示，確保開局與破 10 分雙時段方位一覽無遺） */}
+      {hasMultipleTargets && (
+        <div className="border-t border-white/10 bg-[#151F36] px-3.5 py-2.5">
+          <div className="mb-1.5 text-[10px] font-bold text-white/65">
+            本局所有志願推相對位置明細（點擊可切換聚焦雷達）：
+          </div>
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+            {radarsList.map((item, idx) => {
+              const pal = RADAR_PALETTE[idx % RADAR_PALETTE.length];
+              const isSelected = focusedGirlId === item.targetGirlId;
+              return (
+                <button
+                  key={item.targetGirlId}
+                  type="button"
+                  onClick={() =>
+                    setFocusedGirlId(isSelected ? 'ALL' : item.targetGirlId)
+                  }
+                  className={`flex flex-col gap-1 rounded-xl border p-2 text-left transition-all ${
+                    isSelected
+                      ? 'border-white/50 bg-white/15'
+                      : 'border-white/10 bg-[#0E1526]/70 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`h-2 w-2 rounded-full ${pal.bg}`} />
+                      <img
+                        src={`./images/avatars/${item.targetGirlId}.jpg`}
+                        alt={item.targetGirlName}
+                        className="h-5 w-5 rounded-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                      <span className={`text-xs font-black ${pal.text}`}>
+                        {item.preferenceOrder || idx + 1}推 {item.targetGirlName}
+                      </span>
+                    </div>
+                    <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-white/80">
+                      2F {item.targetGirlZone} 區
+                    </span>
+                  </div>
+                  <div className="space-y-0.5 text-[10px]">
+                    <div className="flex items-center justify-between text-white/75">
+                      <span>開局 (0–10分)：</span>
+                      <span className="font-bold text-[#5ECBC0]">
+                        {item.initial.offsetText}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-white/90">
+                      <span>破 10 分主力：</span>
+                      <span className="font-black text-[#FBBF24]">
+                        {item.after10.offsetText}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 底部圖例說明列 */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 bg-[#0E1526] px-3.5 py-1.5 text-[10px] text-white/60">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="flex items-center gap-1">
-            <span className="h-1.5 w-3 rounded-full bg-[#F59E0B]" />
-            <span>實線黃框：破 10 分決勝站位（主力時段）</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="h-1.5 w-3 rounded-full bg-[#5ECBC0] border border-dashed border-white/60" />
-            <span>虛線綠框：0–10 分開局站位</span>
-          </span>
+          {isMultiCanvas ? (
+            <>
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-3 rounded-full bg-[#F59E0B]" />
+                <span>實線：破 10 分主力站位</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-3 rounded-full bg-white/50 border border-dashed border-white/60" />
+                <span>淡虛線：0–10 分開局站位</span>
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-3 rounded-full bg-[#F59E0B]" />
+                <span>實線黃框：破 10 分決勝站位（主力時段）</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-3 rounded-full bg-[#5ECBC0] border border-dashed border-white/60" />
+                <span>虛線綠框：0–10 分開局站位</span>
+              </span>
+            </>
+          )}
           <span className="flex items-center gap-1">
             <span className="h-2 w-2 rounded-xs bg-[#5ECBC0]/30" />
             <span>扇形光錐：觀眾面向球場真實好拍視角</span>
@@ -763,10 +971,11 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                         </div>
                       </div>
 
-                      {/* 觀眾面向球場看主推雷達圖 */}
+                      {/* 觀眾面向球場看所有推雷達圖 */}
                       {step.targetGirlRadar && (
                         <VisualSeatRadarCard
                           radar={step.targetGirlRadar}
+                          allRadars={step.allTargetGirlRadars}
                           frontGirlInit={step.frontGirlInit}
                           frontGirlAfter10={step.frontGirlAfter10}
                         />

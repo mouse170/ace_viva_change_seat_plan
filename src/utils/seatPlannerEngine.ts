@@ -149,6 +149,7 @@ export interface TargetGirlRadarPill {
   targetGirlNumber: string;
   targetGirlZone: AceZoneId; // 該局女孩所在主力大區
   seatLabel: string;
+  preferenceOrder?: number; // 1 = 首推, 2 = 二推, 3 = 三推
   initial: PhaseRadarDetail;
   after10: PhaseRadarDetail;
 }
@@ -172,6 +173,7 @@ export interface IndividualItineraryStep {
   prevSeatLabel?: string;
   matchedExceptionNote?: string;
   targetGirlRadar?: TargetGirlRadarPill;
+  allTargetGirlRadars?: TargetGirlRadarPill[];
   preferenceOrder?: number; // 喜好順位：1 = 首推, 2 = 二推, 3 = 三推
   isPrimaryGoldenZone?: boolean;
   goldenPeriodText?: string;
@@ -285,18 +287,27 @@ export function computeTargetGirlRadar(
   let initSlot = 1;
   let afterZone: AceZoneId = 'B';
   let afterSlot = 1;
+  let foundInit = false;
+  let foundAfter = false;
 
   for (const z of zones) {
     const iIdx = setStation.initial[z]?.indexOf(targetGirlId) ?? -1;
     if (iIdx !== -1) {
       initZone = z;
       initSlot = iIdx;
+      foundInit = true;
     }
     const aIdx = setStation.after10Points[z]?.indexOf(targetGirlId) ?? -1;
     if (aIdx !== -1) {
       afterZone = z;
       afterSlot = aIdx;
+      foundAfter = true;
     }
+  }
+
+  // 若本局站位表中無此女孩，代表本場未出席，不產生錯誤座標
+  if (!foundInit && !foundAfter) {
+    return undefined;
   }
 
   const sGlobal = getSpectatorSeatGlobalX(assignedSeat.zone, assignedSeat.seat);
@@ -1230,6 +1241,25 @@ export function getIndividualPlanItinerary(
       const targetGirlRadar = setStation && assignment.assignedSeat
         ? computeTargetGirlRadar(assignment.assignedSeat, assignment.targetGirlId, setStation)
         : undefined;
+      if (targetGirlRadar) {
+        targetGirlRadar.preferenceOrder = assignment.preferenceOrder || 1;
+      }
+
+      // 計算本局所有志願推的相對位置雷達
+      const allTargetGirlRadars: TargetGirlRadarPill[] = [];
+      if (setStation && assignment.assignedSeat) {
+        const orderedGirlIds = [...(participant.targetGirlIds || [])];
+        if (!orderedGirlIds.includes(assignment.targetGirlId)) {
+          orderedGirlIds.push(assignment.targetGirlId);
+        }
+        orderedGirlIds.forEach((gId, idx) => {
+          const r = computeTargetGirlRadar(assignment.assignedSeat, gId, setStation);
+          if (r) {
+            r.preferenceOrder = idx + 1;
+            allTargetGirlRadars.push(r);
+          }
+        });
+      }
 
       steps.push({
         setKey: setRes.setKey,
@@ -1250,6 +1280,7 @@ export function getIndividualPlanItinerary(
         prevSeatLabel: assignment.prevSeatLabel,
         matchedExceptionNote: assignment.matchedExceptionNote,
         targetGirlRadar,
+        allTargetGirlRadars,
         preferenceOrder: assignment.preferenceOrder,
         isPrimaryGoldenZone: assignment.isPrimaryGoldenZone,
         goldenPeriodText: assignment.goldenPeriodText,
