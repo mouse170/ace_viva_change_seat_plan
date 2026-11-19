@@ -1,11 +1,33 @@
 import React, { useState } from 'react';
 import { MEMBERS, type AceVivaMember } from '../data/members';
 import {
+  type ExceptionSetKey,
   type Participant,
   type ParticipantRole,
   type SetSpecificPreference,
 } from '../utils/seatPlannerEngine';
 import { type AceZoneId } from '../data/schedule';
+
+const formatExceptionSetLabel = (setKey: ExceptionSetKey): string => {
+  switch (setKey) {
+    case 'set1':
+      return '第 1 局';
+    case 'set2':
+      return '第 2 局';
+    case 'set3':
+      return '第 3 局';
+    case 'set4':
+      return '第 4 局 (延長)';
+    case 'set5':
+      return '第 5 局 (延長)';
+    case 'set1_4':
+      return '第 1、4 局';
+    case 'set2_5':
+      return '第 2、5 局';
+    default:
+      return setKey;
+  }
+};
 
 interface ParticipantsSectionProps {
   participants: Participant[];
@@ -42,7 +64,7 @@ const EditParticipantModal: React.FC<EditParticipantModalProps> = ({
   );
 
   // 新增例外表單 state
-  const [newSetKey, setNewSetKey] = useState<'set1_4' | 'set2_5' | 'set3'>('set1_4');
+  const [newSetKey, setNewSetKey] = useState<ExceptionSetKey>('set1');
   const [newZone, setNewZone] = useState('');
   const [newGirlId, setNewGirlId] = useState('');
 
@@ -311,12 +333,7 @@ const EditParticipantModal: React.FC<EditParticipantModalProps> = ({
                 <p className="text-xs text-[#212047]/50 italic">尚未設定任何單局特殊條件。</p>
               ) : (
                 exceptions.map((exp) => {
-                  const setLabel =
-                    exp.setKey === 'set1_4'
-                      ? '第 1、4 局'
-                      : exp.setKey === 'set2_5'
-                        ? '第 2、5 局'
-                        : '第 3 局';
+                  const setLabel = formatExceptionSetLabel(exp.setKey);
                   const zoneLabel = exp.preferredZones && exp.preferredZones.length > 0
                     ? `${exp.preferredZones.join(' 或 ')} 區`
                     : exp.preferredZone
@@ -357,12 +374,16 @@ const EditParticipantModal: React.FC<EditParticipantModalProps> = ({
                   <span className="block text-[10px] font-bold text-[#212047]/60">指定局數：</span>
                   <select
                     value={newSetKey}
-                    onChange={(e) => setNewSetKey(e.target.value as any)}
+                    onChange={(e) => setNewSetKey(e.target.value as ExceptionSetKey)}
                     className="mt-1 w-full rounded-lg border border-[#212047]/20 bg-white p-1.5 text-xs font-bold text-[#212047]"
                   >
-                    <option value="set1_4">第 1、4 局</option>
-                    <option value="set2_5">第 2、5 局</option>
-                    <option value="set3">第 3 局</option>
+                    <option value="set1">第 1 局（必打）</option>
+                    <option value="set2">第 2 局（必打）</option>
+                    <option value="set3">第 3 局（必打）</option>
+                    <option value="set4">第 4 局（延長）</option>
+                    <option value="set5">第 5 局（延長）</option>
+                    <option value="set1_4">第 1 &amp; 4 局（同步）</option>
+                    <option value="set2_5">第 2 &amp; 5 局（同步）</option>
                   </select>
                 </div>
                 <div>
@@ -444,9 +465,7 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
 
   // 局數特殊例外輸入狀態
   const [showExceptionInput, setShowExceptionInput] = useState(false);
-  const [exceptionSetKey, setExceptionSetKey] = useState<
-    'set1_4' | 'set2_5' | 'set3'
-  >('set1_4');
+  const [exceptionSetKey, setExceptionSetKey] = useState<ExceptionSetKey>('set1');
   const [exceptionZone, setExceptionZone] = useState('');
   const [exceptionGirlId, setExceptionGirlId] = useState('');
 
@@ -570,7 +589,7 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
 
   const handleAddExceptionToParticipant = (
     pId: string,
-    setKey: 'set1_4' | 'set2_5' | 'set3',
+    setKey: ExceptionSetKey,
     zone?: AceZoneId,
     girlId?: string
   ) => {
@@ -588,7 +607,7 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
 
   const handleRemoveExceptionFromParticipant = (
     pId: string,
-    setKey: 'set1_4' | 'set2_5' | 'set3'
+    setKey: ExceptionSetKey
   ) => {
     const updated = participants.map((p) => {
       if (p.id !== pId) return p;
@@ -822,12 +841,16 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
                       <span className="block text-[11px] font-bold text-[#212047]/60">指定局數：</span>
                       <select
                         value={exceptionSetKey}
-                        onChange={(e) => setExceptionSetKey(e.target.value as any)}
+                        onChange={(e) => setExceptionSetKey(e.target.value as ExceptionSetKey)}
                         className="mt-1 w-full rounded-lg border border-[#212047]/20 p-1.5 text-xs font-bold text-[#212047]"
                       >
-                        <option value="set1_4">第 1、4 局</option>
-                        <option value="set2_5">第 2、5 局</option>
-                        <option value="set3">第 3 局</option>
+                        <option value="set1">第 1 局（必打）</option>
+                        <option value="set2">第 2 局（必打）</option>
+                        <option value="set3">第 3 局（必打）</option>
+                        <option value="set4">第 4 局（延長）</option>
+                        <option value="set5">第 5 局（延長）</option>
+                        <option value="set1_4">第 1 &amp; 4 局（同步）</option>
+                        <option value="set2_5">第 2 &amp; 5 局（同步）</option>
                       </select>
                     </div>
 
@@ -1009,12 +1032,7 @@ export const ParticipantsSection: React.FC<ParticipantsSectionProps> = ({
                   <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-[#212047]/5 pt-2 text-[11px]">
                     <span className="font-bold text-[#3F8E67]">局數特殊要求：</span>
                     {p.setExceptions.map((exp) => {
-                      const label =
-                        exp.setKey === 'set1_4'
-                          ? '第 1、4 局'
-                          : exp.setKey === 'set2_5'
-                            ? '第 2、5 局'
-                            : '第 3 局';
+                      const label = formatExceptionSetLabel(exp.setKey);
                       const girlName = exp.targetGirlId
                         ? memberMap.get(exp.targetGirlId)?.name
                         : '';

@@ -221,9 +221,19 @@ export async function renderFullMatchPlanCard(
     // 面板背景
     drawRoundedRect(ctx, 40, panelY, panelW, currentPanelH, 20, 'rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.12)', 1.5);
 
-    // 局數標題列
+    // 局數標題列（前 3 局必打局翡翠綠，第 4–5 延長局灰藍）
     ctx.save();
-    drawRoundedRect(ctx, 55, panelY + 18, 140, 36, 10, '#5BAE84', undefined, 0);
+    drawRoundedRect(
+      ctx,
+      55,
+      panelY + 18,
+      140,
+      36,
+      10,
+      setResult.isGuaranteedSet ? '#5BAE84' : '#64748B',
+      undefined,
+      0
+    );
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '900 18px "Noto Sans TC", sans-serif';
     ctx.textAlign = 'center';
@@ -507,18 +517,28 @@ export async function renderIndividualPlanCard(
       isMoved ? 2 : 1.5
     );
 
-    // (A) 左側局數標記
+    // (A) 左側局數標記（前 3 局必打局翡翠綠，第 4–5 延長局灰藍）
     ctx.save();
-    drawRoundedRect(ctx, 60, cardY + 20, 110, 36, 10, '#5BAE84', undefined, 0);
+    drawRoundedRect(
+      ctx,
+      60,
+      cardY + 20,
+      110,
+      36,
+      10,
+      step.isGuaranteedSet ? '#5BAE84' : '#64748B',
+      undefined,
+      0
+    );
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '900 16px "Noto Sans TC", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(step.setShortLabel, 115, cardY + 38);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.font = 'bold 13px "Noto Sans TC", sans-serif';
-    ctx.fillText(step.setLabel, 115, cardY + 68);
+    ctx.fillStyle = step.isGuaranteedSet ? 'rgba(122, 218, 208, 0.9)' : 'rgba(255, 255, 255, 0.65)';
+    ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
+    ctx.fillText(step.isGuaranteedSet ? '必打局 · 權重 1.0' : '延長局 · 權重 0.5', 115, cardY + 68);
     ctx.restore();
 
     // (B) 中間座位大徽章

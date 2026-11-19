@@ -7,6 +7,8 @@ import { TEAM_INFO } from './data/members';
 import {
   type HeldSeat,
   type Participant,
+  type SolverStrategy,
+  type FullMatchPlanResult,
   parseSeatsInput,
   solveFullMatchPlan,
   getIndividualPlanItinerary,
@@ -217,10 +219,19 @@ export const MainApp: React.FC = () => {
     return Array.from(set);
   }, [currentMatch]);
 
-  // 即時計算全場換位解
-  const planResult = useMemo(() => {
-    return solveFullMatchPlan(currentMatch, heldSeats, participants);
+  // 排位策略模式（預設平衡推薦，支援一鍵對比極致視野與佛系少換位）
+  const [strategy, setStrategy] = useState<SolverStrategy>('balanced');
+
+  // 即時計算三種排位策略之全場 5 局解，供即時對比換位次數與最低分
+  const strategyPlans: Record<SolverStrategy, FullMatchPlanResult> = useMemo(() => {
+    return {
+      balanced: solveFullMatchPlan(currentMatch, heldSeats, participants, 'balanced'),
+      max_view: solveFullMatchPlan(currentMatch, heldSeats, participants, 'max_view'),
+      min_moves: solveFullMatchPlan(currentMatch, heldSeats, participants, 'min_moves'),
+    };
   }, [currentMatch, heldSeats, participants]);
+
+  const planResult = strategyPlans[strategy];
 
   // 生成全隊排班高清圖卡
   const handleGenerateGroupCard = async () => {
@@ -413,6 +424,9 @@ export const MainApp: React.FC = () => {
         <div className="mt-6">
           <PlanResultsSection
             planResult={planResult}
+            strategy={strategy}
+            onStrategyChange={setStrategy}
+            strategyPlans={strategyPlans}
             onGenerateImageCard={handleGenerateGroupCard}
             onGenerateIndividualCard={handleGenerateIndividualCard}
             isGeneratingImage={isGeneratingCard}

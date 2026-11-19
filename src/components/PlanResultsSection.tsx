@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import {
   type FullMatchPlanResult,
+  type PlanSetKey,
+  type SolverStrategy,
   type TargetGirlRadarPill,
+  STRATEGY_CONFIGS,
   formatPlanTextForSharing,
   getIndividualPlanItinerary,
   formatIndividualPlanText,
@@ -388,6 +391,9 @@ const VisualSeatRadarCard: React.FC<{
 
 interface PlanResultsSectionProps {
   planResult: FullMatchPlanResult;
+  strategy: SolverStrategy;
+  onStrategyChange: (strategy: SolverStrategy) => void;
+  strategyPlans: Record<SolverStrategy, FullMatchPlanResult>;
   onGenerateImageCard: () => void;
   onGenerateIndividualCard: (participantId: string) => void;
   isGeneratingImage: boolean;
@@ -395,6 +401,9 @@ interface PlanResultsSectionProps {
 
 export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
   planResult,
+  strategy,
+  onStrategyChange,
+  strategyPlans,
   onGenerateImageCard,
   onGenerateIndividualCard,
   isGeneratingImage,
@@ -402,10 +411,8 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
   // 檢視模式：'group'（全體排班總覽） 或 'individual'（個人專屬攻略）
   const [viewMode, setViewMode] = useState<'group' | 'individual'>('group');
 
-  // 全體排班檢視時的局數篩選
-  const [activeSetKey, setActiveSetKey] = useState<
-    'all' | 'set1_4' | 'set2_5' | 'set3'
-  >('all');
+  // 全體排班檢視時的 5 局篩選
+  const [activeSetKey, setActiveSetKey] = useState<'all' | PlanSetKey>('all');
 
   // 個人攻略檢視時選定的參與者 ID
   const [selectedParticipantId, setSelectedParticipantId] = useState<string>(
@@ -515,6 +522,80 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
 
       {hasSeats && hasParticipants && (
         <>
+          {/* 排位策略模式切換列（即時對比總換位次數、前 3 局保底與全員最低分） */}
+          <div className="mt-5 rounded-2xl border border-[#212047]/10 bg-[#F4FAF8] p-3.5 sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-black text-[#212047]">
+                排位策略模式切換（5 局精確匈牙利全域聯合求解）：
+              </span>
+              <span className="text-[11px] font-medium text-[#212047]/65">
+                {STRATEGY_CONFIGS[strategy].description}
+              </span>
+            </div>
+            <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {(['balanced', 'max_view', 'min_moves'] as SolverStrategy[]).map((modeKey) => {
+                const cfg = STRATEGY_CONFIGS[modeKey];
+                const summary = strategyPlans[modeKey]?.goldenSummary;
+                const isActive = strategy === modeKey;
+                return (
+                  <button
+                    key={modeKey}
+                    type="button"
+                    onClick={() => onStrategyChange(modeKey)}
+                    className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-all ${
+                      isActive
+                        ? 'border-[#212047] bg-[#212047] text-white shadow-sm ring-2 ring-[#5ECBC0]/60'
+                        : 'border-[#212047]/15 bg-white text-[#212047] hover:border-[#5BAE84] hover:bg-[#E6F5F1]/60'
+                    }`}
+                  >
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <span className="text-xs font-black">
+                        {cfg.label}
+                        {modeKey === 'balanced' && (
+                          <span
+                            className={`ml-1.5 rounded px-1.5 py-0.5 text-[9px] font-black ${
+                              isActive
+                                ? 'bg-[#5ECBC0] text-[#212047]'
+                                : 'bg-[#E6F5F1] text-[#3F8E67]'
+                            }`}
+                          >
+                            預設
+                          </span>
+                        )}
+                      </span>
+                      {summary && (
+                        <span
+                          className={`rounded-md px-1.5 py-0.5 font-mono-num text-[10px] font-black ${
+                            isActive
+                              ? 'bg-white/15 text-[#E2B855]'
+                              : 'bg-[#F4FAF8] text-[#212047]/80'
+                          }`}
+                        >
+                          換位 {summary.totalMoves} 次
+                        </span>
+                      )}
+                    </div>
+                    {summary && (
+                      <div
+                        className={`flex flex-wrap items-center gap-2 text-[11px] font-bold ${
+                          isActive ? 'text-white/85' : 'text-[#212047]/70'
+                        }`}
+                      >
+                        <span>
+                          前 3 局保底：{summary.coreAchievedCount}/{summary.eligibleFanCount}
+                        </span>
+                        <span>·</span>
+                        <span>全員最低：{summary.minFinalScore} 分</span>
+                        <span>·</span>
+                        <span>均分：{summary.avgFinalScore}</span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* ======================= 模式一：全體排班總覽 ======================= */}
           {viewMode === 'group' && (
             <div className="mt-5">
@@ -522,7 +603,7 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#F4FAF8] p-3 ring-1 ring-[#5BAE84]/20 sm:p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-bold text-[#212047]">局數切換：</span>
-                  <div className="inline-flex rounded-xl bg-white p-1 ring-1 ring-[#212047]/10">
+                  <div className="inline-flex flex-wrap rounded-xl bg-white p-1 ring-1 ring-[#212047]/10">
                     <button
                       type="button"
                       onClick={() => setActiveSetKey('all')}
@@ -532,20 +613,23 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                           : 'text-[#212047]/70 hover:text-[#212047]'
                       }`}
                     >
-                      全場三局總覽
+                      全場 5 局總覽
                     </button>
                     {planResult.sets.map((s) => (
                       <button
                         key={s.setKey}
                         type="button"
                         onClick={() => setActiveSetKey(s.setKey)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                        className={`rounded-lg px-2.5 py-1.5 text-xs font-bold transition-all ${
                           activeSetKey === s.setKey
                             ? 'bg-[#212047] text-white shadow-xs'
                             : 'text-[#212047]/70 hover:text-[#212047]'
                         }`}
                       >
                         {s.setShortLabel}
+                        {!s.isGuaranteedSet && (
+                          <span className="ml-0.5 text-[10px] opacity-70">(延)</span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -573,33 +657,45 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                 </div>
               </div>
 
-              {/* 首推黃金區保底達成摘要橫幅 */}
-              {planResult.goldenSummary && planResult.goldenSummary.totalFanCount > 0 && (
+              {/* 首推黃金區保底達成摘要橫幅（分級提示前 3 局必打與第 4/5 延長局） */}
+              {planResult.goldenSummary && planResult.goldenSummary.eligibleFanCount > 0 && (
                 <div
-                  className={`mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-xs ${
-                    planResult.goldenSummary.missingGoldenParticipantNames.length === 0
+                  className={`mt-4 flex flex-col gap-1.5 rounded-2xl border px-4 py-3 text-xs ${
+                    planResult.goldenSummary.missingGoldenParticipantNames.length === 0 &&
+                    planResult.goldenSummary.extendedOnlyParticipantNames.length === 0
                       ? 'border-emerald-300 bg-emerald-50/80 text-emerald-900'
                       : 'border-amber-300 bg-amber-50/90 text-amber-950'
                   }`}
                 >
-                  <div className="flex flex-wrap items-center gap-2 font-bold">
-                    <span
-                      className={`rounded-md px-2 py-0.5 text-[11px] font-black text-white ${
-                        planResult.goldenSummary.missingGoldenParticipantNames.length === 0
-                          ? 'bg-[#5BAE84]'
-                          : 'bg-amber-600'
-                      }`}
-                    >
-                      首推黃金區保底
-                    </span>
-                    <span>
-                      {planResult.goldenSummary.goldenAchievedCount} / {planResult.goldenSummary.totalFanCount} 位一般球迷達成（至少 1 局正前方直視首推女孩）
+                  <div className="flex flex-wrap items-center justify-between gap-2 font-bold">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-[11px] font-black text-white ${
+                          planResult.goldenSummary.missingGoldenParticipantNames.length === 0 &&
+                          planResult.goldenSummary.extendedOnlyParticipantNames.length === 0
+                            ? 'bg-[#5BAE84]'
+                            : 'bg-amber-600'
+                        }`}
+                      >
+                        首推黃金區保底
+                      </span>
+                      <span>
+                        前 3 局必打達標：{planResult.goldenSummary.coreAchievedCount} / {planResult.goldenSummary.eligibleFanCount} 位一般球迷（未出席首推自動由次推遞補）
+                      </span>
+                    </div>
+                    <span className="font-mono-num text-[11px] font-black text-[#212047]/75">
+                      5 局總換位：{planResult.goldenSummary.totalMoves} 次 · 最低分：{planResult.goldenSummary.minFinalScore} 分
                     </span>
                   </div>
+                  {planResult.goldenSummary.extendedOnlyParticipantNames.length > 0 && (
+                    <div className="font-bold text-amber-800">
+                      僅於第 4–5 延長局達標（輕扣 10 分）：{planResult.goldenSummary.extendedOnlyParticipantNames.join('、')}
+                    </div>
+                  )}
                   {planResult.goldenSummary.missingGoldenParticipantNames.length > 0 && (
-                    <span className="font-bold text-rose-700">
-                      未達成名單：{planResult.goldenSummary.missingGoldenParticipantNames.join('、')}（個人總分已扣 25 分，建議補充該區座位或調整志願序）
-                    </span>
+                    <div className="font-bold text-rose-700">
+                      全 5 局未達標（重罰扣 25 分）：{planResult.goldenSummary.missingGoldenParticipantNames.join('、')}（建議補充該區座位或調整志願序）
+                    </div>
                   )}
                 </div>
               )}
@@ -609,15 +705,32 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                 {displayedSets.map((setRes) => (
                   <div
                     key={setRes.setKey}
-                    className="overflow-hidden rounded-2xl border border-[#212047]/10 bg-[#F4FAF8] p-4 sm:p-5"
+                    className={`overflow-hidden rounded-2xl border p-4 sm:p-5 ${
+                      setRes.isGuaranteedSet
+                        ? 'border-[#212047]/10 bg-[#F4FAF8]'
+                        : 'border-dashed border-[#212047]/20 bg-[#F8FAFC]'
+                    }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#212047]/10 pb-3">
                       <div className="flex items-center gap-2">
-                        <span className="rounded-lg bg-[#5BAE84] px-2.5 py-1 text-xs font-black text-white">
+                        <span
+                          className={`rounded-lg px-2.5 py-1 text-xs font-black text-white ${
+                            setRes.isGuaranteedSet ? 'bg-[#5BAE84]' : 'bg-slate-500'
+                          }`}
+                        >
                           {setRes.setShortLabel}
                         </span>
                         <span className="text-sm font-black text-[#212047]">
                           {setRes.setLabel} 換位安排
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            setRes.isGuaranteedSet
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {setRes.isGuaranteedSet ? '必打局 · 權重 1.0' : '延長局 · 權重 0.5'}
                         </span>
                       </div>
                       <span className="text-xs text-[#212047]/60">
@@ -675,6 +788,11 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                                   {a.isPrimaryGoldenZone && (
                                     <span className="rounded-md bg-[#E2B855]/25 px-1.5 py-0.2 text-[10px] font-black text-[#8A6100] ring-1 ring-[#E2B855]">
                                       首推黃金區 · {a.goldenPeriodText}
+                                    </span>
+                                  )}
+                                  {a.comboBadge && (
+                                    <span className="rounded-md bg-fuchsia-100 px-1.5 py-0.2 text-[10px] font-black text-fuchsia-800 ring-1 ring-fuchsia-300">
+                                      {a.comboBadge}
                                     </span>
                                   )}
                                 </div>
@@ -779,40 +897,70 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-xl font-black">
-                        【{selectedItinerary.participant.name}】換位行程表
+                        【{selectedItinerary.participant.name}】5 局換位行程表
                       </h3>
                       <span
                         className={`rounded-md px-2 py-0.5 text-xs font-bold text-white ${
-                          selectedItinerary.hasPrimaryGoldenGuarantee
+                          selectedItinerary.goldenStatus === 'core_achieved' ||
+                          selectedItinerary.goldenStatus === 'exempt'
                             ? 'bg-[#5BAE84]'
-                            : 'bg-rose-600'
+                            : selectedItinerary.goldenStatus === 'extended_only'
+                              ? 'bg-amber-600'
+                              : 'bg-rose-600'
                         }`}
                       >
-                        平均滿意度 {selectedItinerary.totalScoreAvg} 分
+                        加權滿意度 {selectedItinerary.totalScoreAvg} 分
+                      </span>
+                      <span className="rounded-md bg-white/10 px-2 py-0.5 font-mono-num text-xs font-bold text-white/85">
+                        全場換位 {selectedItinerary.moveCount} 次
                       </span>
                       {selectedItinerary.participant.role !== 'flex' && (
-                        selectedItinerary.hasPrimaryGoldenGuarantee ? (
+                        selectedItinerary.goldenStatus === 'core_achieved' ? (
                           <span className="rounded-md bg-[#E2B855]/20 px-2 py-0.5 text-xs font-bold text-[#E2B855] ring-1 ring-[#E2B855]/50">
-                            首推黃金區：{selectedItinerary.primaryGoldenCount} 局
+                            前 3 局首推黃金區：{selectedItinerary.coreGoldenCount} 局
+                            {selectedItinerary.extendedGoldenCount > 0
+                              ? `（+延長 ${selectedItinerary.extendedGoldenCount} 局）`
+                              : ''}
+                          </span>
+                        ) : selectedItinerary.goldenStatus === 'extended_only' ? (
+                          <span className="rounded-md bg-amber-500/20 px-2 py-0.5 text-xs font-bold text-amber-200 ring-1 ring-amber-400/60">
+                            僅延長局達標（扣 {selectedItinerary.goldenPenaltyPoints} 分）
+                          </span>
+                        ) : selectedItinerary.goldenStatus === 'missed' ? (
+                          <span className="rounded-md bg-rose-500/20 px-2 py-0.5 text-xs font-bold text-rose-200 ring-1 ring-rose-400/60">
+                            全 5 局首推黃金區未達成（扣 {selectedItinerary.goldenPenaltyPoints} 分）
                           </span>
                         ) : (
-                          <span className="rounded-md bg-rose-500/20 px-2 py-0.5 text-xs font-bold text-rose-200 ring-1 ring-rose-400/60">
-                            首推黃金區未達成（扣 {selectedItinerary.goldenPenaltyPoints} 分）
+                          <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-bold text-white/70">
+                            志願女孩本場未出席（免罰）
                           </span>
                         )
                       )}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/75">
-                      <span>第一志願女孩：</span>
+                      <span>
+                        {selectedItinerary.isPrimaryFallback
+                          ? '本場遞補首推女孩：'
+                          : '本場首推女孩：'}
+                      </span>
                       <strong className="font-bold text-[#E2B855]">
                         #{selectedItinerary.targetGirl.number} {selectedItinerary.targetGirl.name}
                       </strong>
+                      {selectedItinerary.isPrimaryFallback && (
+                        <span className="rounded bg-amber-500/25 px-1.5 py-0.2 text-[10px] font-bold text-amber-200">
+                          原首推未出席 · 自動遞補
+                        </span>
+                      )}
                       <span>·</span>
                       <span>{selectedItinerary.targetGirl.roleBadge}</span>
                     </div>
                     {selectedItinerary.goldenPenaltyPoints > 0 && (
                       <div className="mt-1.5 text-xs font-bold text-rose-300">
-                        扣分明細：原始各局均分 {selectedItinerary.rawScoreAvg} 分 - 未達首推黃金區重罰 {selectedItinerary.goldenPenaltyPoints} 分 = {selectedItinerary.totalScoreAvg} 分
+                        扣分明細：5 局加權均分（前 3 局 ×1.0、第 4–5 局 ×0.5）{selectedItinerary.rawScoreAvg} 分 -{' '}
+                        {selectedItinerary.goldenStatus === 'extended_only'
+                          ? `僅延長局達標輕扣 ${selectedItinerary.goldenPenaltyPoints} 分`
+                          : `全 5 局未達首推黃金區重罰 ${selectedItinerary.goldenPenaltyPoints} 分`}{' '}
+                        = {selectedItinerary.totalScoreAvg} 分
                       </div>
                     )}
                   </div>
@@ -909,6 +1057,11 @@ export const PlanResultsSection: React.FC<PlanResultsSectionProps> = ({
                             {step.isPrimaryGoldenZone && (
                               <span className="rounded-md bg-[#E2B855]/25 px-2 py-0.5 text-xs font-black text-[#8A6100] ring-1 ring-[#E2B855]">
                                 首推黃金區 · {step.goldenPeriodText}
+                              </span>
+                            )}
+                            {step.comboBadge && (
+                              <span className="rounded-md bg-fuchsia-100 px-2 py-0.5 text-xs font-black text-fuchsia-800 ring-1 ring-fuchsia-300">
+                                {step.comboBadge}
                               </span>
                             )}
                           </div>
